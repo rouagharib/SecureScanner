@@ -54,23 +54,46 @@ export default function DASTScanner() {
   const [expanded, setExpanded] = useState(null)
   const [filter, setFilter] = useState('all')
 
-  const startScan = () => {
+  const startScan = async () => {
     if (!url) return
     setScanning(true)
     setResults(null)
     setStep(0)
+
+    // Animate steps while waiting
     let s = 0
     const interval = setInterval(() => {
       s++
       setStep(s)
-      if (s >= testChecks.length) {
-        clearInterval(interval)
-        setTimeout(() => {
-          setScanning(false)
-          setResults(mockResults)
-        }, 600)
+      if (s >= testChecks.length) clearInterval(interval)
+    }, 2000)
+
+    try {
+      const response = await fetch('http://127.0.0.1:8000/api/scan/dast', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url })
+      })
+
+      clearInterval(interval)
+      setStep(testChecks.length)
+
+      if (!response.ok) {
+        const err = await response.json()
+        alert(err.detail || 'Scan failed')
+        setScanning(false)
+        return
       }
-    }, 1000)
+
+      const data = await response.json()
+      setResults(data.vulnerabilities)
+
+    } catch (error) {
+      clearInterval(interval)
+      alert('Could not connect to backend. Make sure the server is running.')
+    } finally {
+      setScanning(false)
+    }
   }
 
   const filtered = results

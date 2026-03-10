@@ -2,7 +2,9 @@ import os
 import tempfile
 import shutil
 from fastapi import UploadFile, HTTPException
+from pydantic import BaseModel
 from services.sast_service import run_bandit_scan, extract_zip
+from services.dast_service import run_dast_scan
 
 ALLOWED_EXTENSIONS = {".py", ".zip"}
 
@@ -10,7 +12,7 @@ async def sast_scan(file: UploadFile):
     # Check file extension
     filename = file.filename
     ext = os.path.splitext(filename)[1].lower()
-    
+
     if ext not in ALLOWED_EXTENSIONS:
         raise HTTPException(
             status_code=400,
@@ -51,3 +53,29 @@ async def sast_scan(file: UploadFile):
     finally:
         # Always clean up temp files
         shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+class DASTRequest(BaseModel):
+    url: str
+
+async def dast_scan(request: DASTRequest):
+    url = request.url
+
+    # Basic URL validation
+    if not url.startswith("http://") and not url.startswith("https://"):
+        raise HTTPException(
+            status_code=400,
+            detail="URL must start with http:// or https://"
+        )
+
+    vulnerabilities = run_dast_scan(url)
+
+    return {
+        "url": url,
+        "total": len(vulnerabilities),
+        "critical": len([v for v in vulnerabilities if v["severity"] == "critical"]),
+        "high": len([v for v in vulnerabilities if v["severity"] == "high"]),
+        "medium": len([v for v in vulnerabilities if v["severity"] == "medium"]),
+        "low": len([v for v in vulnerabilities if v["severity"] == "low"]),
+        "vulnerabilities": vulnerabilities
+    }
