@@ -1,0 +1,289 @@
+.scanner-page {
+  max-width: 860px;
+}
+
+.scan-setup .card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* tabs */
+.tabs {
+  display: flex;
+  gap: 4px;
+  background: var(--bg);
+  border-radius: var(--radius);
+  padding: 4px;
+  width: fit-content;
+}
+
+.tab {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 14px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text2);
+  transition: background 0.15s, color 0.15s;
+}
+
+.tab:hover { color: var(--text); }
+.tab.active { background: var(--white); color: var(--text); box-shadow: var(--shadow-sm); }
+
+/* dropzone */
+.dropzone {
+  border: 1.5px dashed var(--border2);
+  border-radius: var(--radius-lg);
+  padding: 48px 24px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  color: var(--text3);
+}
+
+.dropzone:hover { border-color: var(--accent); background: var(--accent-light); }
+.dropzone svg { color: var(--border2); margin-bottom: 4px; }
+.dropzone h3 { font-size: 15px; font-weight: 500; color: var(--text2); }
+.dropzone p { font-size: 13px; }
+
+.file-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+  margin-top: 8px;
+}
+
+.file-pill {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: 99px;
+  font-size: 11px;
+  font-family: var(--mono);
+  padding: 3px 10px;
+  color: var(--text2);
+}
+
+.git-input-area { padding: 4px 0; }
+
+.scan-actions { display: flex; gap: 10px; }
+
+/* scanning state */
+.scanning-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 56px 24px;
+  text-align: center;
+}
+
+.scanning-state h3 { font-size: 16px; font-weight: 600; color: var(--text); }
+.scanning-state p { font-size: 13px; color: var(--text3); }
+
+.scan-anim {
+  width: 64px;
+  height: 64px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent);
+  margin-bottom: 4px;
+}
+
+.scan-ring {
+  position: absolute;
+  inset: 0;
+  border: 2px solid var(--accent);
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.progress-bar {
+  width: 260px;
+  height: 4px;
+  background: var(--bg2);
+  border-radius: 99px;
+  overflow: hidden;
+  margin-top: 4px;
+}
+
+.progress-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 99px;
+  transition: width 0.2s ease;
+}
+
+.progress-pct { font-size: 12px; color: var(--text3); font-family: var(--mono); }
+
+/* results */
+.results-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.severity-summary {
+  display: flex;
+  gap: 8px;
+}
+
+.sev-chip {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 14px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: all 0.15s;
+  background: var(--white);
+}
+
+.sev-chip:hover { border-color: var(--border2); }
+.sev-chip.selected { border-color: currentColor; }
+
+.sev-chip--critical { color: var(--danger); }
+.sev-chip--critical.selected { background: var(--danger-bg); }
+.sev-chip--high { color: #c2410c; }
+.sev-chip--high.selected { background: #fff7ed; }
+.sev-chip--medium { color: var(--warning); }
+.sev-chip--medium.selected { background: var(--warning-bg); }
+.sev-chip--low { color: var(--success); }
+.sev-chip--low.selected { background: var(--success-bg); }
+
+.sev-count { font-size: 16px; font-weight: 600; }
+.sev-label { font-size: 12px; text-transform: capitalize; }
+
+.results-actions { display: flex; gap: 8px; }
+
+/* vuln items */
+.vuln-list-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.vuln-item { overflow: hidden; }
+
+.vuln-summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 20px;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.vuln-summary:hover { background: var(--bg); }
+
+.vuln-type {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  flex: 1;
+}
+
+.vuln-file {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text3);
+}
+
+.vuln-line { color: var(--border2); }
+
+.vuln-toggle {
+  color: var(--text3);
+  display: flex;
+  align-items: center;
+  margin-left: 8px;
+}
+
+.vuln-detail {
+  border-top: 1px solid var(--border);
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  background: var(--bg);
+}
+
+.vuln-section h4 {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text3);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+}
+
+.vuln-section p { font-size: 13px; color: var(--text2); line-height: 1.65; }
+
+.vuln-code {
+  background: #1a1d23;
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  overflow-x: auto;
+}
+
+.vuln-code code {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: #e2e8f0;
+  white-space: pre;
+}
+
+.vuln-fix {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  background: var(--success-bg);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+}
+
+.vuln-fix svg { color: var(--success); flex-shrink: 0; margin-top: 2px; }
+.vuln-fix p { color: var(--success); font-size: 13px; }
+
+/* DAST specifics */
+.url-form { display: flex; gap: 10px; align-items: flex-end; }
+.url-form .input-group { flex: 1; }
+.url-form .btn { white-space: nowrap; height: 40px; align-self: flex-end; }
+
+.test-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.test-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  font-size: 13px;
+  color: var(--text2);
+}
+
+.test-item.running { border-color: var(--accent); background: var(--accent-light); color: var(--accent); }
+.test-item.done { border-color: #bbf7d0; background: var(--success-bg); color: var(--success); }
+.test-item.pending { background: var(--bg); color: var(--text3); }
+.test-item svg { flex-shrink: 0; }
