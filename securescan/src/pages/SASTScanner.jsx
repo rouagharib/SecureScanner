@@ -64,21 +64,52 @@ export default function SASTScanner() {
 
   const handleFiles = (e) => setFiles(Array.from(e.target.files))
 
-  const startScan = () => {
+  const startScan = async () => {
     setScanning(true)
     setResults(null)
     setProgress(0)
-    const interval = setInterval(() => {
-      setProgress(p => {
-        if (p >= 100) {
-          clearInterval(interval)
-          setScanning(false)
-          setResults(mockResults)
-          return 100
-        }
-        return p + Math.random() * 12
+
+    try {
+      // Build form data with the uploaded file
+      const formData = new FormData()
+
+      if (tab === 'upload' && files.length > 0) {
+        formData.append('file', files[0])
+      } else if (tab === 'git') {
+        alert('Git scanning coming soon!')
+        setScanning(false)
+        return
+      }
+
+      // Fake progress bar while waiting for response
+      const interval = setInterval(() => {
+        setProgress(p => p >= 90 ? 90 : p + 10)
+      }, 300)
+
+      // Call the backend
+      const response = await fetch('http://127.0.0.1:8000/api/scan/sast', {
+        method: 'POST',
+        body: formData
       })
-    }, 200)
+
+      clearInterval(interval)
+      setProgress(100)
+
+      if (!response.ok) {
+        const err = await response.json()
+        alert(err.detail || 'Scan failed')
+        setScanning(false)
+        return
+      }
+
+      const data = await response.json()
+      setResults(data.vulnerabilities)
+
+    } catch (error) {
+      alert('Could not connect to backend. Make sure the server is running.')
+    } finally {
+      setScanning(false)
+    }
   }
 
   const filtered = results
