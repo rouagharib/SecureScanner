@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from database import engine, Base
 from routes.auth import router as auth_router
+from routes.scan import router as scan_router
 
 # Create all tables in the database
 Base.metadata.create_all(bind=engine)
@@ -19,6 +20,7 @@ app.add_middleware(
 
 # Register routes
 app.include_router(auth_router)
+app.include_router(scan_router)
 
 @app.get("/")
 def root():
