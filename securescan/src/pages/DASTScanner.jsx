@@ -1,40 +1,7 @@
 import { useState } from 'react'
-import { Globe, Shield, Lock, Server, AlertTriangle, CheckCircle2, Loader2, ChevronDown, ChevronUp, Wifi } from 'lucide-react'
+import { Globe, Shield, Lock, Server, CheckCircle2, Loader2, ChevronDown, ChevronUp, Wifi } from 'lucide-react'
 import '../components/Layout.css'
 import './Scanner.css'
-
-const mockResults = [
-  {
-    id: 1, severity: 'critical', type: 'SQL Injection', endpoint: 'POST /api/login',
-    description: 'The login endpoint is vulnerable to SQL injection via the username parameter.',
-    fix: 'Use parameterized queries. Validate and sanitize all user inputs server-side.',
-    response: '500 Internal Server Error — MySQL syntax error'
-  },
-  {
-    id: 2, severity: 'high', type: 'Cross-Site Scripting (XSS)', endpoint: 'GET /search?q=',
-    description: 'The search parameter reflects user input directly in the HTML response without encoding.',
-    fix: 'Encode all output using context-appropriate escaping (HTML entity encoding).',
-    response: 'Reflected payload executed in browser context'
-  },
-  {
-    id: 3, severity: 'medium', type: 'Missing Security Headers', endpoint: 'All responses',
-    description: 'Several important security headers are absent: Content-Security-Policy, X-Frame-Options.',
-    fix: 'Configure your web server to include all recommended security headers.',
-    response: 'Headers: no CSP, no X-Frame-Options, no HSTS'
-  },
-  {
-    id: 4, severity: 'medium', type: 'Open Redirect', endpoint: 'GET /redirect?url=',
-    description: 'The redirect parameter accepts arbitrary external URLs without validation.',
-    fix: 'Whitelist allowed redirect URLs or use relative paths only.',
-    response: 'Location: https://attacker.com'
-  },
-  {
-    id: 5, severity: 'low', type: 'Directory Listing', endpoint: 'GET /uploads/',
-    description: 'Server exposes directory listing for the uploads folder.',
-    fix: 'Disable directory listing in your web server configuration.',
-    response: 'Index of /uploads/ — 200 OK'
-  },
-]
 
 const sevColors = { critical: 'badge-critical', high: 'badge-high', medium: 'badge-medium', low: 'badge-low' }
 const sevOrder = { critical: 0, high: 1, medium: 2, low: 3 }
@@ -60,7 +27,6 @@ export default function DASTScanner() {
     setResults(null)
     setStep(0)
 
-    // Animate steps while waiting
     let s = 0
     const interval = setInterval(() => {
       s++
@@ -93,6 +59,33 @@ export default function DASTScanner() {
       alert('Could not connect to backend. Make sure the server is running.')
     } finally {
       setScanning(false)
+    }
+  }
+
+  const downloadReport = async () => {
+    try {
+      const response = await fetch('http://127.0.0.1:8000/api/scan/report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'DAST',
+          target: url,
+          total: results.length,
+          critical: results.filter(v => v.severity === 'critical').length,
+          high: results.filter(v => v.severity === 'high').length,
+          medium: results.filter(v => v.severity === 'medium').length,
+          low: results.filter(v => v.severity === 'low').length,
+          vulnerabilities: results
+        })
+      })
+
+      const blob = await response.blob()
+      const link = document.createElement('a')
+      link.href = window.URL.createObjectURL(blob)
+      link.download = 'securescan-report.pdf'
+      link.click()
+    } catch (error) {
+      alert('Could not generate report. Make sure the server is running.')
     }
   }
 
@@ -166,22 +159,22 @@ export default function DASTScanner() {
             </div>
             <div className="results-actions">
               <button className="btn btn-secondary btn-sm" onClick={() => { setResults(null); setStep(-1) }}>New Scan</button>
-              <button className="btn btn-primary btn-sm">Export Report</button>
+              <button className="btn btn-primary btn-sm" onClick={downloadReport}>Export Report</button>
             </div>
           </div>
 
           <div className="vuln-list-wrap">
-            {filtered.map(v => (
-              <div key={v.id} className="vuln-item card">
-                <div className="vuln-summary" onClick={() => setExpanded(expanded === v.id ? null : v.id)}>
+            {filtered.map((v, i) => (
+              <div key={i} className="vuln-item card">
+                <div className="vuln-summary" onClick={() => setExpanded(expanded === i ? null : i)}>
                   <span className={`badge ${sevColors[v.severity]}`}>{v.severity}</span>
                   <span className="vuln-type">{v.type}</span>
                   <span className="vuln-file">{v.endpoint}</span>
                   <span className="vuln-toggle">
-                    {expanded === v.id ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                    {expanded === i ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                   </span>
                 </div>
-                {expanded === v.id && (
+                {expanded === i && (
                   <div className="vuln-detail">
                     <div className="vuln-section">
                       <h4>Description</h4>
