@@ -1,46 +1,7 @@
 import { useState, useRef } from 'react'
-import { Upload, FolderOpen, GitBranch, AlertTriangle, CheckCircle2, X, ChevronDown, ChevronUp, Code2 } from 'lucide-react'
+import { Upload, FolderOpen, GitBranch, CheckCircle2, ChevronDown, ChevronUp, Code2 } from 'lucide-react'
 import '../components/Layout.css'
 import './Scanner.css'
-
-const mockResults = [
-  {
-    id: 1, severity: 'critical', type: 'SQL Injection', file: 'src/db/queries.js', line: 42,
-    description: 'User input is directly concatenated into an SQL query without sanitization.',
-    fix: 'Use parameterized queries or prepared statements instead of string concatenation.',
-    code: "const q = `SELECT * FROM users WHERE id = ${req.params.id}`"
-  },
-  {
-    id: 2, severity: 'high', type: 'XSS Vulnerability', file: 'src/views/profile.jsx', line: 87,
-    description: 'Unsanitized user data is rendered directly using innerHTML.',
-    fix: 'Use textContent instead of innerHTML, or sanitize input with DOMPurify.',
-    code: "element.innerHTML = user.bio"
-  },
-  {
-    id: 3, severity: 'high', type: 'Exposed Secret', file: '.env.example', line: 3,
-    description: 'Hardcoded API key found in source file.',
-    fix: 'Move secrets to environment variables and add .env to .gitignore.',
-    code: 'API_KEY="sk-prod-abc123xyz789..."'
-  },
-  {
-    id: 4, severity: 'medium', type: 'Weak Authentication', file: 'src/auth/login.js', line: 21,
-    description: 'Password hashing uses MD5 which is cryptographically broken.',
-    fix: 'Use bcrypt, argon2, or scrypt for password hashing.',
-    code: "const hash = md5(password)"
-  },
-  {
-    id: 5, severity: 'medium', type: 'Missing Input Validation', file: 'src/api/user.js', line: 55,
-    description: 'Request body is used without any schema validation.',
-    fix: 'Validate all inputs using a schema validation library like Joi or Zod.',
-    code: "const { email, role } = req.body // no validation"
-  },
-  {
-    id: 6, severity: 'low', type: 'Debug Mode Enabled', file: 'config/app.js', line: 8,
-    description: 'Application is running with debug mode enabled in production.',
-    fix: 'Set DEBUG=false in production environment.',
-    code: "DEBUG=true"
-  },
-]
 
 const sevOrder = { critical: 0, high: 1, medium: 2, low: 3 }
 const sevColors = { critical: 'badge-critical', high: 'badge-high', medium: 'badge-medium', low: 'badge-low' }
@@ -70,7 +31,6 @@ export default function SASTScanner() {
     setProgress(0)
 
     try {
-      // Build form data with the uploaded file
       const formData = new FormData()
 
       if (tab === 'upload' && files.length > 0) {
@@ -81,12 +41,10 @@ export default function SASTScanner() {
         return
       }
 
-      // Fake progress bar while waiting for response
       const interval = setInterval(() => {
         setProgress(p => p >= 90 ? 90 : p + 10)
       }, 300)
 
-      // Call the backend
       const response = await fetch('http://127.0.0.1:8000/api/scan/sast', {
         method: 'POST',
         body: formData
@@ -109,6 +67,35 @@ export default function SASTScanner() {
       alert('Could not connect to backend. Make sure the server is running.')
     } finally {
       setScanning(false)
+    }
+  }
+
+  const downloadReport = async () => {
+    try {
+      const response = await fetch('http://127.0.0.1:8000/api/scan/report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'SAST',
+          target: files[0]?.name || 'scan',
+          total: results.length,
+          critical: results.filter(v => v.severity === 'high').length,
+          high: results.filter(v => v.severity === 'high').length,
+          medium: results.filter(v => v.severity === 'medium').length,
+          low: results.filter(v => v.severity === 'low').length,
+          vulnerabilities: results
+        })
+      })
+
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'securescan-report.pdf'
+      a.click()
+      window.URL.revokeObjectURL(url)
+    } catch (error) {
+      alert('Could not generate report. Make sure the server is running.')
     }
   }
 
@@ -222,22 +209,22 @@ export default function SASTScanner() {
               <button className="btn btn-secondary btn-sm" onClick={() => { setResults(null); setFiles([]); setProgress(0) }}>
                 New Scan
               </button>
-              <button className="btn btn-primary btn-sm">Export Report</button>
+              <button className="btn btn-primary btn-sm" onClick={downloadReport}>Export Report</button>
             </div>
           </div>
 
           <div className="vuln-list-wrap">
-            {filtered.map(v => (
-              <div key={v.id} className="vuln-item card">
-                <div className="vuln-summary" onClick={() => setExpanded(expanded === v.id ? null : v.id)}>
+            {filtered.map((v, i) => (
+              <div key={i} className="vuln-item card">
+                <div className="vuln-summary" onClick={() => setExpanded(expanded === i ? null : i)}>
                   <span className={`badge ${sevColors[v.severity]}`}>{v.severity}</span>
                   <span className="vuln-type">{v.type}</span>
-                  <span className="vuln-file">{v.file}<span className="vuln-line">:{v.line}</span></span>
+                  <span className="vuln-file">{v.file}<span className="vuln-line">{v.line ? `:${v.line}` : ''}</span></span>
                   <span className="vuln-toggle">
-                    {expanded === v.id ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                    {expanded === i ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                   </span>
                 </div>
-                {expanded === v.id && (
+                {expanded === i && (
                   <div className="vuln-detail">
                     <div className="vuln-section">
                       <h4>Description</h4>

@@ -3,13 +3,33 @@ import tempfile
 import shutil
 from fastapi import UploadFile, HTTPException
 from pydantic import BaseModel
+from sqlalchemy.orm import Session
+from database import SessionLocal
 from services.sast_service import run_bandit_scan, extract_zip
 from services.dast_service import run_dast_scan
+from models.scan import Scan
 
 ALLOWED_EXTENSIONS = {".py", ".zip"}
 
+def save_scan(type: str, target: str, results: dict):
+    """Save scan results to database"""
+    db = SessionLocal()
+    try:
+        scan = Scan(
+            user_id=1,  # we'll make this dynamic when we add auth to routes
+            type=type,
+            target=target,
+            status="completed",
+            results=results
+        )
+        db.add(scan)
+        db.commit()
+        db.refresh(scan)
+        return scan.id
+    finally:
+        db.close()
+
 async def sast_scan(file: UploadFile):
-    # Check file extension
     filename = file.filename
     ext = os.path.splitext(filename)[1].lower()
 
@@ -19,17 +39,14 @@ async def sast_scan(file: UploadFile):
             detail="Only .py and .zip files are supported"
         )
 
-    # Create a temp folder to work in
     temp_dir = tempfile.mkdtemp()
 
     try:
-        # Save uploaded file to temp folder
         file_path = os.path.join(temp_dir, filename)
         with open(file_path, "wb") as f:
             content = await file.read()
             f.write(content)
 
-        # If zip, extract it and scan the folder
         if ext == ".zip":
             extract_to = os.path.join(temp_dir, "extracted")
             os.makedirs(extract_to)
@@ -38,10 +55,11 @@ async def sast_scan(file: UploadFile):
         else:
             scan_path = file_path
 
-        # Run Bandit
         vulnerabilities = run_bandit_scan(scan_path)
 
-        return {
+        result = {
+            "type": "SAST",
+            "target": filename,
             "filename": filename,
             "total": len(vulnerabilities),
             "critical": len([v for v in vulnerabilities if v["severity"] == "high"]),
@@ -50,8 +68,13 @@ async def sast_scan(file: UploadFile):
             "vulnerabilities": vulnerabilities
         }
 
+        # Save to database
+        scan_id = save_scan("SAST", filename, result)
+        result["scan_id"] = scan_id
+
+        return result
+
     finally:
-        # Always clean up temp files
         shutil.rmtree(temp_dir, ignore_errors=True)
 
 
@@ -61,7 +84,6 @@ class DASTRequest(BaseModel):
 async def dast_scan(request: DASTRequest):
     url = request.url
 
-    # Basic URL validation
     if not url.startswith("http://") and not url.startswith("https://"):
         raise HTTPException(
             status_code=400,
@@ -70,7 +92,9 @@ async def dast_scan(request: DASTRequest):
 
     vulnerabilities = run_dast_scan(url)
 
-    return {
+    result = {
+        "type": "DAST",
+        "target": url,
         "url": url,
         "total": len(vulnerabilities),
         "critical": len([v for v in vulnerabilities if v["severity"] == "critical"]),
@@ -79,3 +103,9 @@ async def dast_scan(request: DASTRequest):
         "low": len([v for v in vulnerabilities if v["severity"] == "low"]),
         "vulnerabilities": vulnerabilities
     }
+
+    # Save to database
+    scan_id = save_scan("DAST", url, result)
+    result["scan_id"] = scan_id
+
+    return result
