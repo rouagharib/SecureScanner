@@ -4,9 +4,8 @@ import os
 import zipfile
 import tempfile
 
+# ── BANDIT (Python only) ───────────────────────────────────
 def run_bandit_scan(file_path: str) -> list:
-    """Run Bandit on a file or folder and return parsed results"""
-    
     result = subprocess.run(
         ["bandit", "-r", file_path, "-f", "json", "-q"],
         capture_output=True,
@@ -26,21 +25,108 @@ def run_bandit_scan(file_path: str) -> list:
             "file": issue.get("filename", ""),
             "line": issue.get("line_number", 0),
             "description": issue.get("issue_text", ""),
-            "fix": get_fix_suggestion(issue.get("test_id", "")),
+            "fix": get_bandit_fix(issue.get("test_id", "")),
             "code": issue.get("code", "").strip()
         })
 
     return vulnerabilities
 
 
+# ── SEMGREP (multi-language) ───────────────────────────────
+def run_semgrep_scan(file_path: str) -> list:
+    env = os.environ.copy()
+    env["PYTHONIOENCODING"] = "utf-8"
+    env["PYTHONUTF8"] = "1"
+
+    result = subprocess.run(
+        ["semgrep", "--config", "auto", file_path, "--json", "--quiet"],
+        capture_output=True,
+        text=True,
+        env=env,
+        encoding="utf-8",
+        errors="ignore"
+    )
+
+    try:
+        data = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        return []
+
+    vulnerabilities = []
+    for issue in data.get("results", []):
+        severity = issue.get("extra", {}).get("severity", "WARNING").lower()
+        if severity == "warning":
+            severity = "medium"
+        elif severity == "error":
+            severity = "high"
+        elif severity == "info":
+            severity = "low"
+
+        vulnerabilities.append({
+            "type": issue.get("check_id", "Unknown").split(".")[-1].replace("-", " ").title(),
+            "severity": severity,
+            "file": issue.get("path", ""),
+            "line": issue.get("start", {}).get("line", 0),
+            "description": issue.get("extra", {}).get("message", ""),
+            "fix": issue.get("extra", {}).get("fix", "Review this finding and follow security best practices."),
+            "code": issue.get("extra", {}).get("lines", "").strip()
+        })
+
+    return vulnerabilities
+
+
+# ── SMART SCAN (picks the right tool) ─────────────────────
+PYTHON_EXTENSIONS = {".py"}
+SEMGREP_EXTENSIONS = {".js", ".jsx", ".ts", ".tsx", ".java", ".php", ".go", ".rb", ".c", ".cpp"}
+
+def run_scan(file_path: str) -> dict:
+    """Detect language and run the right scanner"""
+    
+    # If it's a folder, check what languages are inside
+    if os.path.isdir(file_path):
+        extensions = set()
+        for root, dirs, files in os.walk(file_path):
+            for f in files:
+                ext = os.path.splitext(f)[1].lower()
+                extensions.add(ext)
+
+        has_python = bool(extensions & PYTHON_EXTENSIONS)
+        has_other = bool(extensions & SEMGREP_EXTENSIONS)
+
+        vulns = []
+        languages = []
+
+        if has_python:
+            vulns += run_bandit_scan(file_path)
+            languages.append("Python")
+        if has_other or not has_python:
+            vulns += run_semgrep_scan(file_path)
+            detected = extensions & SEMGREP_EXTENSIONS
+            languages += [ext.replace(".", "").upper() for ext in detected]
+
+        return {"vulnerabilities": vulns, "languages": list(set(languages))}
+
+    # Single file
+    ext = os.path.splitext(file_path)[1].lower()
+    if ext in PYTHON_EXTENSIONS:
+        return {
+            "vulnerabilities": run_bandit_scan(file_path),
+            "languages": ["Python"]
+        }
+    else:
+        return {
+            "vulnerabilities": run_semgrep_scan(file_path),
+            "languages": [ext.replace(".", "").upper()]
+        }
+
+
+# ── HELPERS ────────────────────────────────────────────────
 def extract_zip(zip_path: str, extract_to: str):
-    """Extract a zip file to a folder"""
     with zipfile.ZipFile(zip_path, 'r') as z:
         z.extractall(extract_to)
 
 
-def get_fix_suggestion(test_id: str) -> str:
-    """Return a fix suggestion based on Bandit test ID"""
+def get_bandit_fix(test_id: str) -> str:
     fixes = {
         "B101": "Avoid using assert statements in production code.",
         "B102": "Avoid using exec(), it can execute arbitrary code.",

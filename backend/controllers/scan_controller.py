@@ -5,18 +5,17 @@ from fastapi import UploadFile, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from database import SessionLocal
-from services.sast_service import run_bandit_scan, extract_zip
+from services.sast_service import run_scan, extract_zip
 from services.dast_service import run_dast_scan
 from models.scan import Scan
 
-ALLOWED_EXTENSIONS = {".py", ".zip"}
+ALLOWED_EXTENSIONS = {".py", ".js", ".jsx", ".ts", ".tsx", ".java", ".php", ".go", ".rb", ".c", ".cpp", ".zip"}
 
 def save_scan(type: str, target: str, results: dict):
-    """Save scan results to database"""
     db = SessionLocal()
     try:
         scan = Scan(
-            user_id=1,  # we'll make this dynamic when we add auth to routes
+            user_id=1,
             type=type,
             target=target,
             status="completed",
@@ -36,7 +35,7 @@ async def sast_scan(file: UploadFile):
     if ext not in ALLOWED_EXTENSIONS:
         raise HTTPException(
             status_code=400,
-            detail="Only .py and .zip files are supported"
+            detail=f"Unsupported file type. Supported: {', '.join(ALLOWED_EXTENSIONS)}"
         )
 
     temp_dir = tempfile.mkdtemp()
@@ -55,20 +54,24 @@ async def sast_scan(file: UploadFile):
         else:
             scan_path = file_path
 
-        vulnerabilities = run_bandit_scan(scan_path)
+        # Run smart scan
+        scan_result = run_scan(scan_path)
+        vulnerabilities = scan_result["vulnerabilities"]
+        languages = scan_result["languages"]
 
         result = {
             "type": "SAST",
             "target": filename,
             "filename": filename,
+            "languages": languages,
             "total": len(vulnerabilities),
-            "critical": len([v for v in vulnerabilities if v["severity"] == "high"]),
+            "critical": len([v for v in vulnerabilities if v["severity"] == "critical"]),
+            "high": len([v for v in vulnerabilities if v["severity"] == "high"]),
             "medium": len([v for v in vulnerabilities if v["severity"] == "medium"]),
             "low": len([v for v in vulnerabilities if v["severity"] == "low"]),
             "vulnerabilities": vulnerabilities
         }
 
-        # Save to database
         scan_id = save_scan("SAST", filename, result)
         result["scan_id"] = scan_id
 
@@ -104,7 +107,6 @@ async def dast_scan(request: DASTRequest):
         "vulnerabilities": vulnerabilities
     }
 
-    # Save to database
     scan_id = save_scan("DAST", url, result)
     result["scan_id"] = scan_id
 
