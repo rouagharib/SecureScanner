@@ -1,57 +1,7 @@
-import { useState } from 'react'
-import { FileText, Download, Eye, Calendar, Code2, Globe, ChevronRight, ShieldAlert, CheckCircle2, AlertTriangle } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { FileText, Download, Calendar, Code2, Globe, ChevronRight, CheckCircle2 } from 'lucide-react'
 import '../components/Layout.css'
 import './ReportViewer.css'
-
-const reports = [
-  {
-    id: 1,
-    name: 'backend-api/',
-    type: 'SAST',
-    date: 'Mar 10, 2026',
-    duration: '1m 24s',
-    critical: 3, high: 8, medium: 12, low: 4,
-    files: 47,
-    status: 'completed',
-    vulns: [
-      { severity: 'critical', type: 'SQL Injection', file: 'src/db/queries.js:42', fix: 'Use parameterized queries.' },
-      { severity: 'critical', type: 'SQL Injection', file: 'src/db/users.js:18', fix: 'Use parameterized queries.' },
-      { severity: 'critical', type: 'Exposed Secret', file: '.env.example:3', fix: 'Move to environment variables.' },
-      { severity: 'high', type: 'XSS', file: 'src/views/profile.jsx:87', fix: 'Sanitize output.' },
-      { severity: 'high', type: 'Weak Auth', file: 'src/auth/login.js:21', fix: 'Use bcrypt.' },
-      { severity: 'medium', type: 'Missing Validation', file: 'src/api/user.js:55', fix: 'Add schema validation.' },
-    ]
-  },
-  {
-    id: 2,
-    name: 'https://myapp.io',
-    type: 'DAST',
-    date: 'Mar 10, 2026',
-    duration: '3m 12s',
-    critical: 1, high: 4, medium: 7, low: 2,
-    files: null,
-    status: 'completed',
-    vulns: [
-      { severity: 'critical', type: 'SQL Injection', file: 'POST /api/login', fix: 'Parameterize queries.' },
-      { severity: 'high', type: 'XSS', file: 'GET /search?q=', fix: 'Encode output.' },
-      { severity: 'medium', type: 'Missing Headers', file: 'All responses', fix: 'Add security headers.' },
-    ]
-  },
-  {
-    id: 3,
-    name: 'auth-service/',
-    type: 'SAST',
-    date: 'Mar 9, 2026',
-    duration: '0m 48s',
-    critical: 0, high: 2, medium: 5, low: 1,
-    files: 23,
-    status: 'completed',
-    vulns: [
-      { severity: 'high', type: 'Weak Password Hashing', file: 'src/hash.js:10', fix: 'Use bcrypt or argon2.' },
-      { severity: 'medium', type: 'Debug Mode Enabled', file: 'config/app.js:8', fix: 'Disable in production.' },
-    ]
-  },
-]
 
 const sevColors = { critical: 'badge-critical', high: 'badge-high', medium: 'badge-medium', low: 'badge-low' }
 
@@ -65,7 +15,45 @@ function RiskScore({ c, h, m, l }) {
 }
 
 export default function ReportViewer() {
+  const [reports, setReports] = useState([])
+  const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState(null)
+
+  useEffect(() => {
+    const fetchReports = async () => {
+      try {
+        const res = await fetch('http://127.0.0.1:8000/api/history/')
+        const data = await res.json()
+        setReports(data)
+      } catch (err) {
+        console.error('Could not load reports')
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchReports()
+  }, [])
+
+  const downloadReport = async (report) => {
+    try {
+      const res = await fetch(`http://127.0.0.1:8000/api/history/${report.id}/full`)
+      const full = await res.json()
+
+      const response = await fetch('http://127.0.0.1:8000/api/scan/report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(full.results)
+      })
+
+      const blob = await response.blob()
+      const link = document.createElement('a')
+      link.href = window.URL.createObjectURL(blob)
+      link.download = `securescan-${report.target}-report.pdf`
+      link.click()
+    } catch (err) {
+      alert('Could not generate report.')
+    }
+  }
 
   const report = selected != null ? reports.find(r => r.id === selected) : null
 
@@ -77,7 +65,9 @@ export default function ReportViewer() {
             ← All Reports
           </button>
           <div className="report-detail-actions">
-            <button className="btn btn-secondary btn-sm"><Download size={14} /> Download PDF</button>
+            <button className="btn btn-secondary btn-sm" onClick={() => downloadReport(report)}>
+              <Download size={14} /> Download PDF
+            </button>
           </div>
         </div>
 
@@ -87,8 +77,8 @@ export default function ReportViewer() {
               {report.type === 'SAST' ? <Code2 size={16} /> : <Globe size={16} />}
             </div>
             <div>
-              <h1 className="page-title" style={{ fontFamily: 'var(--mono)', fontSize: 17 }}>{report.name}</h1>
-              <p className="page-subtitle">{report.type} Scan — {report.date} — {report.duration}</p>
+              <h1 className="page-title" style={{ fontFamily: 'var(--mono)', fontSize: 17 }}>{report.target}</h1>
+              <p className="page-subtitle">{report.type} Scan — {report.date}</p>
             </div>
           </div>
         </div>
@@ -106,26 +96,14 @@ export default function ReportViewer() {
             </div>
           ))}
           <div className="detail-stat detail-stat--neutral">
-            <span className="detail-stat-val"><RiskScore c={report.critical} h={report.high} m={report.medium} l={report.low} /></span>
+            <span className="detail-stat-val">
+              <RiskScore c={report.critical} h={report.high} m={report.medium} l={report.low} />
+            </span>
             <span className="detail-stat-label">Risk Level</span>
           </div>
         </div>
 
-        <div className="card">
-          <div className="card-header" style={{ paddingBottom: 16 }}>
-            <span className="card-title">Vulnerabilities ({report.vulns.length})</span>
-          </div>
-          <div style={{ padding: '0 0 8px' }}>
-            {report.vulns.map((v, i) => (
-              <div key={i} className="detail-vuln-row">
-                <span className={`badge ${sevColors[v.severity]}`}>{v.severity}</span>
-                <span className="detail-vuln-type">{v.type}</span>
-                <span className="detail-vuln-file">{v.file}</span>
-                <span className="detail-vuln-fix"><CheckCircle2 size={12} /> {v.fix}</span>
-              </div>
-            ))}
-          </div>
-        </div>
+        <ReportDetail id={report.id} />
       </div>
     )
   }
@@ -137,38 +115,117 @@ export default function ReportViewer() {
         <p className="page-subtitle">All scan results and generated reports</p>
       </div>
 
-      <div className="report-list">
-        {reports.map(r => (
-          <div key={r.id} className="report-card card" onClick={() => setSelected(r.id)}>
-            <div className="report-card-left">
-              <div className={`report-type-icon ${r.type === 'SAST' ? 'blue' : 'purple'}`}>
-                {r.type === 'SAST' ? <Code2 size={16} strokeWidth={1.75} /> : <Globe size={16} strokeWidth={1.75} />}
-              </div>
-              <div className="report-card-info">
-                <span className="report-card-name">{r.name}</span>
-                <div className="report-card-meta">
-                  <span>{r.type}</span>
-                  <span>·</span>
-                  <Calendar size={12} />
-                  <span>{r.date}</span>
-                  <span>·</span>
-                  <span>{r.duration}</span>
-                  {r.files && <><span>·</span><span>{r.files} files</span></>}
+      {loading ? (
+        <div className="empty-state card"><p>Loading...</p></div>
+      ) : reports.length === 0 ? (
+        <div className="empty-state card">
+          <FileText size={32} />
+          <h3>No reports yet</h3>
+          <p>Run a scan to generate your first report</p>
+        </div>
+      ) : (
+        <div className="report-list">
+          {reports.map(r => (
+            <div key={r.id} className="report-card card" onClick={() => setSelected(r.id)}>
+              <div className="report-card-left">
+                <div className={`report-type-icon ${r.type === 'SAST' ? 'blue' : 'purple'}`}>
+                  {r.type === 'SAST' ? <Code2 size={16} strokeWidth={1.75} /> : <Globe size={16} strokeWidth={1.75} />}
+                </div>
+                <div className="report-card-info">
+                  <span className="report-card-name">{r.target}</span>
+                  <div className="report-card-meta">
+                    <span>{r.type}</span>
+                    <span>·</span>
+                    <Calendar size={12} />
+                    <span>{r.date}</span>
+                    <span>·</span>
+                    <span>{r.total} findings</span>
+                  </div>
                 </div>
               </div>
-            </div>
-
-            <div className="report-card-right">
-              <div className="report-badges">
-                {r.critical > 0 && <span className="badge badge-critical">{r.critical} critical</span>}
-                {r.high > 0 && <span className="badge badge-high">{r.high} high</span>}
-                {r.medium > 0 && <span className="badge badge-medium">{r.medium} medium</span>}
+              <div className="report-card-right">
+                <div className="report-badges">
+                  {r.critical > 0 && <span className="badge badge-critical">{r.critical} critical</span>}
+                  {r.high > 0 && <span className="badge badge-high">{r.high} high</span>}
+                  {r.medium > 0 && <span className="badge badge-medium">{r.medium} medium</span>}
+                </div>
+                <RiskScore c={r.critical} h={r.high} m={r.medium} l={r.low} />
+                <ChevronRight size={16} className="report-arrow" />
               </div>
-              <RiskScore c={r.critical} h={r.high} m={r.medium} l={r.low} />
-              <ChevronRight size={16} className="report-arrow" />
             </div>
-          </div>
-        ))}
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ReportDetail({ id }) {
+  const [data, setData] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [expanded, setExpanded] = useState(null)
+
+  useEffect(() => {
+    const fetch_ = async () => {
+      try {
+        const res = await fetch(`http://127.0.0.1:8000/api/history/${id}/full`)
+        const json = await res.json()
+        setData(json)
+      } catch {
+        setData(null)
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetch_()
+  }, [id])
+
+  if (loading) return <div className="empty-state"><p>Loading vulnerabilities...</p></div>
+  if (!data) return <div className="empty-state"><p>Could not load details.</p></div>
+
+  const vulns = data.results?.vulnerabilities || []
+
+  return (
+    <div className="card">
+      <div className="card-header" style={{ paddingBottom: 16 }}>
+        <span className="card-title">Vulnerabilities ({vulns.length})</span>
+      </div>
+      <div style={{ padding: '0 0 8px' }}>
+        {vulns.length === 0 ? (
+          <div className="empty-state"><p>No vulnerabilities found</p></div>
+        ) : (
+          vulns.map((v, i) => (
+            <div key={i}>
+              <div
+                className="detail-vuln-row"
+                style={{ cursor: 'pointer' }}
+                onClick={() => setExpanded(expanded === i ? null : i)}
+              >
+                <span className={`badge ${sevColors[v.severity]}`}>{v.severity}</span>
+                <span className="detail-vuln-type">{v.type}</span>
+                <span className="detail-vuln-file">{v.file || v.endpoint || ''}</span>
+                <span className="detail-vuln-fix"><CheckCircle2 size={12} /> {v.fix}</span>
+              </div>
+              {expanded === i && (
+                <div className="vuln-detail" style={{ margin: '0 0 8px', borderRadius: 0 }}>
+                  <div className="vuln-section">
+                    <h4>Description</h4>
+                    <p>{v.description}</p>
+                  </div>
+                  {(v.code || v.response) && (
+                    <div className="vuln-code">
+                      <code>{v.code || v.response}</code>
+                    </div>
+                  )}
+                  <div className="vuln-section vuln-fix">
+                    <CheckCircle2 size={14} />
+                    <p>{v.fix}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))
+        )}
       </div>
     </div>
   )
