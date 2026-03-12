@@ -27,3 +27,6 @@ backend/venv/
 backend/__pycache__/
 backend/*.db
 backend/.env
+# Dataset and trained model
+backend/data/
+backend/models/
