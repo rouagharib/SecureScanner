@@ -1,24 +1,41 @@
 import { useNavigate } from 'react-router-dom'
-import { ShieldAlert, CheckCircle2, Clock, AlertTriangle, ArrowRight, Code2, Globe, TrendingUp } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { ShieldAlert, CheckCircle2, Clock, ArrowRight, Code2, Globe, TrendingUp } from 'lucide-react'
 import '../components/Layout.css'
 import './Dashboard.css'
 
-const stats = [
-  { label: 'Total Scans', value: '24', icon: TrendingUp, color: 'blue' },
-  { label: 'Vulnerabilities Found', value: '137', icon: ShieldAlert, color: 'red' },
-  { label: 'Issues Resolved', value: '89', icon: CheckCircle2, color: 'green' },
-  { label: 'Scans In Progress', value: '2', icon: Clock, color: 'yellow' },
-]
-
-const recentScans = [
-  { name: 'backend-api/', type: 'SAST', time: '2 hours ago', critical: 3, high: 8, medium: 12, status: 'done' },
-  { name: 'https://myapp.io', type: 'DAST', time: '5 hours ago', critical: 1, high: 4, medium: 7, status: 'done' },
-  { name: 'auth-service/', type: 'SAST', time: '1 day ago', critical: 0, high: 2, medium: 5, status: 'done' },
-  { name: 'https://staging.io', type: 'DAST', time: '2 days ago', critical: 0, high: 1, medium: 3, status: 'done' },
-]
-
 export default function Dashboard() {
   const navigate = useNavigate()
+  const [stats, setStats] = useState({ total_scans: 0, total_vulnerabilities: 0, critical: 0, high: 0 })
+  const [recentScans, setRecentScans] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [statsRes, historyRes] = await Promise.all([
+          fetch('http://127.0.0.1:8000/api/history/stats'),
+          fetch('http://127.0.0.1:8000/api/history/')
+        ])
+        const statsData = await statsRes.json()
+        const historyData = await historyRes.json()
+        setStats(statsData)
+        setRecentScans(historyData.slice(0, 5))
+      } catch (err) {
+        console.error('Could not load dashboard data')
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchData()
+  }, [])
+
+  const statCards = [
+    { label: 'Total Scans', value: stats.total_scans, icon: TrendingUp, color: 'blue' },
+    { label: 'Vulnerabilities Found', value: stats.total_vulnerabilities, icon: ShieldAlert, color: 'red' },
+    { label: 'Critical Issues', value: stats.critical, icon: Clock, color: 'yellow' },
+    { label: 'High Issues', value: stats.high, icon: CheckCircle2, color: 'green' },
+  ]
 
   return (
     <div className="dashboard">
@@ -29,13 +46,13 @@ export default function Dashboard() {
 
       {/* Stats */}
       <div className="stats-grid">
-        {stats.map(({ label, value, icon: Icon, color }) => (
+        {statCards.map(({ label, value, icon: Icon, color }) => (
           <div key={label} className="stat-card card">
             <div className={`stat-icon stat-icon--${color}`}>
               <Icon size={18} strokeWidth={1.75} />
             </div>
             <div>
-              <div className="stat-value">{value}</div>
+              <div className="stat-value">{loading ? '—' : value}</div>
               <div className="stat-label">{label}</div>
             </div>
           </div>
@@ -73,46 +90,55 @@ export default function Dashboard() {
           <button className="btn btn-secondary btn-sm" onClick={() => navigate('/report')}>View all reports</button>
         </div>
         <div className="card-body" style={{ padding: 0 }}>
-          <table className="scan-table">
-            <thead>
-              <tr>
-                <th>Target</th>
-                <th>Type</th>
-                <th>Critical</th>
-                <th>High</th>
-                <th>Medium</th>
-                <th>Time</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {recentScans.map((scan, i) => (
-                <tr key={i} onClick={() => navigate('/report')} className="scan-row">
-                  <td className="scan-name">{scan.name}</td>
-                  <td>
-                    <span className={`badge badge-info`}>{scan.type}</span>
-                  </td>
-                  <td>
-                    {scan.critical > 0
-                      ? <span className="badge badge-critical">{scan.critical}</span>
-                      : <span className="count-zero">—</span>}
-                  </td>
-                  <td>
-                    {scan.high > 0
-                      ? <span className="badge badge-high">{scan.high}</span>
-                      : <span className="count-zero">—</span>}
-                  </td>
-                  <td>
-                    {scan.medium > 0
-                      ? <span className="badge badge-medium">{scan.medium}</span>
-                      : <span className="count-zero">—</span>}
-                  </td>
-                  <td className="scan-time">{scan.time}</td>
-                  <td><ArrowRight size={14} className="row-arrow" /></td>
+          {loading ? (
+            <div className="empty-state">
+              <p>Loading...</p>
+            </div>
+          ) : recentScans.length === 0 ? (
+            <div className="empty-state">
+              <h3>No scans yet</h3>
+              <p>Run your first scan to see results here</p>
+            </div>
+          ) : (
+            <table className="scan-table">
+              <thead>
+                <tr>
+                  <th>Target</th>
+                  <th>Type</th>
+                  <th>Critical</th>
+                  <th>High</th>
+                  <th>Medium</th>
+                  <th>Date</th>
+                  <th></th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {recentScans.map((scan) => (
+                  <tr key={scan.id} onClick={() => navigate('/report')} className="scan-row">
+                    <td className="scan-name">{scan.target}</td>
+                    <td><span className="badge badge-info">{scan.type}</span></td>
+                    <td>
+                      {scan.critical > 0
+                        ? <span className="badge badge-critical">{scan.critical}</span>
+                        : <span className="count-zero">—</span>}
+                    </td>
+                    <td>
+                      {scan.high > 0
+                        ? <span className="badge badge-high">{scan.high}</span>
+                        : <span className="count-zero">—</span>}
+                    </td>
+                    <td>
+                      {scan.medium > 0
+                        ? <span className="badge badge-medium">{scan.medium}</span>
+                        : <span className="count-zero">—</span>}
+                    </td>
+                    <td className="scan-time">{scan.date}</td>
+                    <td><ArrowRight size={14} className="row-arrow" /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
     </div>
