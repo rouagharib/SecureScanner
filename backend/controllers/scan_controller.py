@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from database import SessionLocal
 from services.sast_service import run_scan, extract_zip
 from services.dast_service import run_dast_scan
+from services.ai_service import enrich_with_ai 
 from models.scan import Scan
 
 ALLOWED_EXTENSIONS = {".py", ".js", ".jsx", ".ts", ".tsx", ".java", ".php", ".go", ".rb", ".c", ".cpp", ".zip"}
@@ -58,6 +59,16 @@ async def sast_scan(file: UploadFile):
         scan_result = run_scan(scan_path)
         vulnerabilities = scan_result["vulnerabilities"]
         languages = scan_result["languages"]
+
+         # ── AI ENRICHMENT ──────────────────────────────────────
+        # For each vulnerability Bandit/Semgrep found, ask the AI
+        # to also classify it and assess its risk
+        for vuln in vulnerabilities:
+            ai_result = enrich_with_ai(vuln.get("code", ""))
+            if ai_result:
+                vuln.update(ai_result)   # adds ai_vulnerability_type + ai_risk_level
+        # ──────────────────────────────────────────────────────
+
 
         result = {
             "type": "SAST",
@@ -111,3 +122,4 @@ async def dast_scan(request: DASTRequest):
     result["scan_id"] = scan_id
 
     return result
+
