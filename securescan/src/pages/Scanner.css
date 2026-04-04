@@ -282,7 +282,19 @@
   font-size: 13px;
   color: var(--text2);
 }
+/* AI Badge */
+.ai-badge {
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 3px 9px;
+  border-radius: 99px;
+  font-weight: 500;
+  white-space: nowrap;
+}
 
+.ai-badge--confirmed { background: var(--success-bg); color: var(--success); }
+.ai-badge--likely { background: var(--warning-bg); color: var(--warning); }
+.ai-badge--review { background: var(--info-bg); color: var(--info); }
 .test-item.running { border-color: var(--accent); background: var(--accent-light); color: var(--accent); }
 .test-item.done { border-color: #bbf7d0; background: var(--success-bg); color: var(--success); }
 .test-item.pending { background: var(--bg); color: var(--text3); }

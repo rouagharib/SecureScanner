@@ -1,6 +1,6 @@
-from sqlalchemy.orm import Session
-from models.user import User
+from database import users_collection
 from passlib.context import CryptContext
+from bson import ObjectId
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -10,26 +10,27 @@ def hash_password(password: str) -> str:
 def verify_password(plain: str, hashed: str) -> bool:
     return pwd_context.verify(plain, hashed)
 
-def get_user_by_email(db: Session, email: str):
-    return db.query(User).filter(User.email == email).first()
+async def get_user_by_email(email: str):
+    return await users_collection.find_one({"email": email})
 
-def create_user(db: Session, name: str, email: str, password: str):
-    # Check if email already exists
-    existing = get_user_by_email(db, email)
+async def create_user(name: str, email: str, password: str):
+    existing = await get_user_by_email(email)
     if existing:
         return None
 
     hashed = hash_password(password)
-    user = User(name=name, email=email, password=hashed)
-    db.add(user)
-    db.commit()
-    db.refresh(user)
+    user = {
+        "name": name,
+        "email": email,
+        "password": hashed,
+    }
+    result = await users_collection.insert_one(user)
+    user["_id"] = result.inserted_id
     return user
 
-def authenticate_user(db: Session, email: str, password: str):
-    user = get_user_by_email(db, email)
-    if not user:
-        return None
-    if not verify_password(password, user.password):
-        return None
-    return user
+def format_user(user: dict) -> dict:
+    return {
+        "id": str(user["_id"]),
+        "name": user["name"],
+        "email": user["email"],
+    }

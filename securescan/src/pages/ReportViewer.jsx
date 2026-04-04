@@ -4,6 +4,7 @@ import '../components/Layout.css'
 import './ReportViewer.css'
 
 const sevColors = { critical: 'badge-critical', high: 'badge-high', medium: 'badge-medium', low: 'badge-low' }
+const authHeader = () => ({ 'Authorization': `Bearer ${localStorage.getItem('token')}` })
 
 function RiskScore({ c, h, m, l }) {
   const score = c * 40 + h * 15 + m * 5 + l
@@ -22,7 +23,9 @@ export default function ReportViewer() {
   useEffect(() => {
     const fetchReports = async () => {
       try {
-        const res = await fetch('http://127.0.0.1:8000/api/history/')
+        const res = await fetch('http://127.0.0.1:8000/api/history/', {
+          headers: authHeader()
+        })
         const data = await res.json()
         setReports(data)
       } catch (err) {
@@ -36,7 +39,9 @@ export default function ReportViewer() {
 
   const downloadReport = async (report) => {
     try {
-      const res = await fetch(`http://127.0.0.1:8000/api/history/${report.id}/full`)
+      const res = await fetch(`http://127.0.0.1:8000/api/history/${report.id}/full`, {
+        headers: authHeader()
+      })
       const full = await res.json()
 
       const response = await fetch('http://127.0.0.1:8000/api/scan/report', {
@@ -168,7 +173,9 @@ function ReportDetail({ id }) {
   useEffect(() => {
     const fetch_ = async () => {
       try {
-        const res = await fetch(`http://127.0.0.1:8000/api/history/${id}/full`)
+        const res = await fetch(`http://127.0.0.1:8000/api/history/${id}/full`, {
+          headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        })
         const json = await res.json()
         setData(json)
       } catch {

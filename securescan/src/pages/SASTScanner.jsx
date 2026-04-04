@@ -47,6 +47,9 @@ export default function SASTScanner() {
 
       const response = await fetch('http://127.0.0.1:8000/api/scan/sast', {
         method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
         body: formData
       })
 
@@ -216,14 +219,19 @@ export default function SASTScanner() {
           <div className="vuln-list-wrap">
             {filtered.map((v, i) => (
               <div key={i} className="vuln-item card">
-                <div className="vuln-summary" onClick={() => setExpanded(expanded === i ? null : i)}>
-                  <span className={`badge ${sevColors[v.severity]}`}>{v.severity}</span>
-                  <span className="vuln-type">{v.type}</span>
-                  <span className="vuln-file">{v.file}<span className="vuln-line">{v.line ? `:${v.line}` : ''}</span></span>
-                  <span className="vuln-toggle">
-                    {expanded === i ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+              <div className="vuln-summary" onClick={() => setExpanded(expanded === i ? null : i)}>
+                <span className={`badge ${sevColors[v.severity]}`}>{v.severity}</span>
+                <span className="vuln-type">{v.type}</span>
+                <span className="vuln-file">{v.file}<span className="vuln-line">{v.line ? `:${v.line}` : ''}</span></span>
+                {v.confidence !== undefined && (
+                  <span className={`ai-badge ai-badge--${v.ai_verdict?.toLowerCase()}`}>
+                    AI {v.confidence}% · {v.ai_verdict}
                   </span>
-                </div>
+                )}
+                <span className="vuln-toggle">
+                  {expanded === i ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                </span>
+              </div>
                 {expanded === i && (
                   <div className="vuln-detail">
                     <div className="vuln-section">

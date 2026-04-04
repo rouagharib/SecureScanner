@@ -8,15 +8,44 @@ export default function Login({ onLogin }) {
   const [password, setPassword] = useState('')
   const [show, setShow] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
   const navigate = useNavigate()
 
-  const handleSubmit = (e) => {
+  const [forgotMode, setForgotMode] = useState(false)
+  const [forgotEmail, setForgotEmail] = useState('')
+  const [forgotSent, setForgotSent] = useState(false)
+
+  const handleSubmit = async (e) => {
     e.preventDefault()
     setLoading(true)
-    setTimeout(() => {
-      onLogin()
+    setError('')
+
+    try {
+      const response = await fetch('http://127.0.0.1:8000/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        setError(data.detail || 'Invalid email or password')
+        setLoading(false)
+        return
+      }
+
+      localStorage.setItem('token', data.access_token)
+      localStorage.setItem('user', JSON.stringify(data.user))
+
+      onLogin(data.user)
       navigate('/dashboard')
-    }, 900)
+
+    } catch (err) {
+      setError('Could not connect to server. Make sure the backend is running.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -47,6 +76,12 @@ export default function Login({ onLogin }) {
             <p>Sign in to your account</p>
           </div>
 
+          {error && (
+            <div className="auth-error">
+              {error}
+            </div>
+          )}
+
           <form onSubmit={handleSubmit} className="auth-form">
             <div className="input-group">
               <label className="input-label">Email address</label>
@@ -64,7 +99,14 @@ export default function Login({ onLogin }) {
             <div className="input-group">
               <div className="label-row">
                 <label className="input-label">Password</label>
-                <a href="#" className="auth-link-small">Forgot password?</a>
+                <button
+                  type="button"
+                  className="auth-link-small"
+                  onClick={() => setForgotMode(true)}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer' }}
+                >
+                  Forgot password?
+                </button>
               </div>
               <div className="input-wrap">
                 <input
@@ -90,6 +132,55 @@ export default function Login({ onLogin }) {
             Don't have an account? <Link to="/register" className="auth-link">Create one</Link>
           </p>
         </div>
+
+        {/* Forgot Password Modal */}
+        {forgotMode && (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}>
+            <div className="auth-card" style={{ maxWidth: 380, width: '100%', margin: 20 }}>
+              <div className="auth-card-header">
+                <h2>Reset password</h2>
+                <p>Enter your email and we'll send you a reset link</p>
+              </div>
+              {forgotSent ? (
+                <p style={{ color: 'var(--success)', fontSize: 13, textAlign: 'center', padding: '16px 0' }}>
+                  ✓ If this email exists, a reset link has been sent!
+                </p>
+              ) : (
+                <div className="auth-form">
+                  <div className="input-group">
+                    <label className="input-label">Email address</label>
+                    <input
+                      className="input"
+                      type="email"
+                      placeholder="you@example.com"
+                      value={forgotEmail}
+                      onChange={e => setForgotEmail(e.target.value)}
+                    />
+                  </div>
+                  <button
+                    className="btn btn-primary auth-submit"
+                    onClick={async () => {
+                      await fetch('http://127.0.0.1:8000/api/auth/forgot-password', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ email: forgotEmail })
+                      })
+                      setForgotSent(true)
+                    }}
+                  >
+                    Send reset link
+                  </button>
+                </div>
+              )}
+              <button
+                onClick={() => { setForgotMode(false); setForgotSent(false) }}
+                style={{ width: '100%', textAlign: 'center', marginTop: 12, fontSize: 13, color: 'var(--text3)', background: 'none', border: 'none', cursor: 'pointer' }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

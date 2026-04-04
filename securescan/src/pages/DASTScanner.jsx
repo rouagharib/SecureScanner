@@ -37,8 +37,12 @@ export default function DASTScanner() {
     try {
       const response = await fetch('http://127.0.0.1:8000/api/scan/dast', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
         body: JSON.stringify({ url })
+      
       })
 
       clearInterval(interval)
@@ -170,6 +174,11 @@ export default function DASTScanner() {
                   <span className={`badge ${sevColors[v.severity]}`}>{v.severity}</span>
                   <span className="vuln-type">{v.type}</span>
                   <span className="vuln-file">{v.endpoint}</span>
+                  {v.confidence !== undefined && (
+                    <span className={`ai-badge ai-badge--${v.ai_verdict?.toLowerCase()}`}>
+                      AI {v.confidence}% · {v.ai_verdict}
+                    </span>
+                  )}
                   <span className="vuln-toggle">
                     {expanded === i ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                   </span>
