@@ -1,6 +1,7 @@
-from fastapi import APIRouter, UploadFile, File, Depends
+from fastapi import APIRouter, UploadFile, File, Depends, HTTPException
 from fastapi.responses import Response
-from controllers.scan_controller import sast_scan, dast_scan, DASTRequest
+from typing import List
+from controllers.scan_controller import sast_scan, dast_scan, git_scan, DASTRequest, GitScanRequest
 from services.report_service import generate_pdf_report
 from services.token_service import verify_token
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -12,13 +13,16 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(securit
     token = credentials.credentials
     payload = verify_token(token)
     if not payload:
-        from fastapi import HTTPException
         raise HTTPException(status_code=401, detail="Invalid token")
     return payload
 
 @router.post("/sast")
-async def sast_route(file: UploadFile = File(...), user=Depends(get_current_user)):
-    return await sast_scan(file, user["id"])
+async def sast_route(files: List[UploadFile] = File(...), user=Depends(get_current_user)):
+    return await sast_scan(files, user["id"])
+
+@router.post("/git")
+async def git_route(request: GitScanRequest, user=Depends(get_current_user)):
+    return await git_scan(request, user["id"])
 
 @router.post("/dast")
 async def dast_route(request: DASTRequest, user=Depends(get_current_user)):

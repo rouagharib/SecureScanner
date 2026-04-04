@@ -30,44 +30,70 @@ export default function SASTScanner() {
     setResults(null)
     setProgress(0)
 
+    const interval = setInterval(() => {
+      setProgress(p => p >= 90 ? 90 : p + 10)
+    }, 300)
+
     try {
-      const formData = new FormData()
+      const token = localStorage.getItem('token')
 
       if (tab === 'upload' && files.length > 0) {
-        formData.append('file', files[0])
-      } else if (tab === 'git') {
-        alert('Git scanning coming soon!')
-        setScanning(false)
-        return
+        const formData = new FormData()
+        files.forEach(file => formData.append('files', file))
+
+        const response = await fetch('http://127.0.0.1:8000/api/scan/sast', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` },
+          body: formData
+        })
+
+        clearInterval(interval)
+        setProgress(100)
+
+        if (!response.ok) {
+          const err = await response.json()
+          alert(err.detail || 'Scan failed')
+          return
+        }
+
+        const data = await response.json()
+        setResults(data.vulnerabilities)
+
+      } else if (tab === 'git' && gitUrl) {
+        const controller = new AbortController()
+        const timeout = setTimeout(() => controller.abort(), 120000)
+
+        const response = await fetch('http://127.0.0.1:8000/api/scan/git', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ repo_url: gitUrl }),
+          signal: controller.signal
+        })
+
+        clearTimeout(timeout)
+        clearInterval(interval)
+        setProgress(100)
+
+        if (!response.ok) {
+          const err = await response.json()
+          alert(err.detail || 'Scan failed')
+          return
+        }
+
+        const data = await response.json()
+        setResults(data.vulnerabilities)
       }
-
-      const interval = setInterval(() => {
-        setProgress(p => p >= 90 ? 90 : p + 10)
-      }, 300)
-
-      const response = await fetch('http://127.0.0.1:8000/api/scan/sast', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: formData
-      })
-
-      clearInterval(interval)
-      setProgress(100)
-
-      if (!response.ok) {
-        const err = await response.json()
-        alert(err.detail || 'Scan failed')
-        setScanning(false)
-        return
-      }
-
-      const data = await response.json()
-      setResults(data.vulnerabilities)
 
     } catch (error) {
-      alert('Could not connect to backend. Make sure the server is running.')
+      clearInterval(interval)
+      if (error.name === 'AbortError') {
+        alert('Scan timed out. Try a smaller repository.')
+      } else {
+        alert('Could not connect to backend. Make sure the server is running.')
+      }
     } finally {
       setScanning(false)
     }
@@ -142,7 +168,7 @@ export default function SASTScanner() {
                 <input ref={fileRef} type="file" multiple hidden onChange={handleFiles} />
                 <FolderOpen size={32} strokeWidth={1.25} />
                 <h3>Drop your project folder here</h3>
-                <p>or click to browse files</p>
+                <p>Supports multiple files — .py, .js, .ts, .java, .php, .zip and more</p>
                 {files.length > 0 && (
                   <div className="file-pills">
                     {files.slice(0, 5).map((f, i) => (
@@ -164,6 +190,9 @@ export default function SASTScanner() {
                     onChange={e => setGitUrl(e.target.value)}
                   />
                 </div>
+                <p style={{ fontSize: 12, color: 'var(--text3)', marginTop: 8 }}>
+                  Supports public GitHub and GitLab repositories
+                </p>
               </div>
             )}
 
@@ -216,40 +245,60 @@ export default function SASTScanner() {
             </div>
           </div>
 
-          <div className="vuln-list-wrap">
-            {filtered.map((v, i) => (
-              <div key={i} className="vuln-item card">
-              <div className="vuln-summary" onClick={() => setExpanded(expanded === i ? null : i)}>
-                <span className={`badge ${sevColors[v.severity]}`}>{v.severity}</span>
-                <span className="vuln-type">{v.type}</span>
-                <span className="vuln-file">{v.file}<span className="vuln-line">{v.line ? `:${v.line}` : ''}</span></span>
-                {v.confidence !== undefined && (
-                  <span className={`ai-badge ai-badge--${v.ai_verdict?.toLowerCase()}`}>
-                    AI {v.confidence}% · {v.ai_verdict}
-                  </span>
-                )}
-                <span className="vuln-toggle">
-                  {expanded === i ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                </span>
+          {/* Group by file */}
+          {Object.entries(
+            filtered.reduce((groups, vuln) => {
+              const file = vuln.file || vuln.endpoint || 'Unknown'
+              const shortFile = file.split(/[\\/]/).pop()
+              if (!groups[shortFile]) groups[shortFile] = []
+              groups[shortFile].push(vuln)
+              return groups
+            }, {})
+          ).map(([filename, vulns]) => (
+            <div key={filename} className="file-group">
+              <div className="file-group-header">
+                <Code2 size={14} />
+                <span>{filename}</span>
+                <span className="file-group-count">{vulns.length} issue{vulns.length > 1 ? 's' : ''}</span>
               </div>
-                {expanded === i && (
-                  <div className="vuln-detail">
-                    <div className="vuln-section">
-                      <h4>Description</h4>
-                      <p>{v.description}</p>
+              <div className="vuln-list-wrap">
+                {vulns.map((v, i) => (
+                  <div key={i} className="vuln-item card">
+                    <div className="vuln-summary" onClick={() => setExpanded(expanded === `${filename}-${i}` ? null : `${filename}-${i}`)}>
+                      <span className={`badge ${sevColors[v.severity]}`}>{v.severity}</span>
+                      <span className="vuln-type">{v.type}</span>
+                      <span className="vuln-file">line <span className="vuln-line">{v.line}</span></span>
+                      {v.confidence !== undefined && (
+                        <span className={`ai-badge ai-badge--${v.ai_verdict?.toLowerCase()}`}>
+                          AI {v.confidence}% · {v.ai_verdict}
+                        </span>
+                      )}
+                      <span className="vuln-toggle">
+                        {expanded === `${filename}-${i}` ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                      </span>
                     </div>
-                    <div className="vuln-code">
-                      <code>{v.code}</code>
-                    </div>
-                    <div className="vuln-section vuln-fix">
-                      <CheckCircle2 size={14} />
-                      <p>{v.fix}</p>
-                    </div>
+                    {expanded === `${filename}-${i}` && (
+                      <div className="vuln-detail">
+                        <div className="vuln-section">
+                          <h4>Description</h4>
+                          <p>{v.description}</p>
+                        </div>
+                        {v.code && (
+                          <div className="vuln-code">
+                            <code>{v.code}</code>
+                          </div>
+                        )}
+                        <div className="vuln-section vuln-fix">
+                          <CheckCircle2 size={14} />
+                          <p>{v.fix}</p>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                )}
+                ))}
               </div>
-            ))}
-          </div>
+            </div>
+          ))}
         </>
       )}
     </div>
