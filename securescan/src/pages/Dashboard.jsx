@@ -13,10 +13,13 @@ export default function Dashboard() {
   useEffect(() => {
     const fetchData = async () => {
       try {
+        const token = localStorage.getItem('token')
+        const headers = { 'Authorization': `Bearer ${token}` }
         const [statsRes, historyRes] = await Promise.all([
-          fetch('http://127.0.0.1:8000/api/history/stats'),
-          fetch('http://127.0.0.1:8000/api/history/')
-        ])
+        fetch('http://127.0.0.1:8000/api/history/stats', { headers }),
+        fetch('http://127.0.0.1:8000/api/history/', { headers })
+])
+        
         const statsData = await statsRes.json()
         const historyData = await historyRes.json()
         setStats(statsData)

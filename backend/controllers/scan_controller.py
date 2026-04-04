@@ -1,35 +1,29 @@
 import os
 import tempfile
 import shutil
+from datetime import datetime
 from fastapi import UploadFile, HTTPException
 from pydantic import BaseModel
-from sqlalchemy.orm import Session
-from database import SessionLocal
+from database import scans_collection
 from services.sast_service import run_scan, extract_zip
 from services.dast_service import run_dast_scan
-from services.ai_service import enrich_with_ai 
-from models.scan import Scan
+from services.ai_service import analyze_vulnerabilities
 
 ALLOWED_EXTENSIONS = {".py", ".js", ".jsx", ".ts", ".tsx", ".java", ".php", ".go", ".rb", ".c", ".cpp", ".zip"}
 
-def save_scan(type: str, target: str, results: dict):
-    db = SessionLocal()
-    try:
-        scan = Scan(
-            user_id=1,
-            type=type,
-            target=target,
-            status="completed",
-            results=results
-        )
-        db.add(scan)
-        db.commit()
-        db.refresh(scan)
-        return scan.id
-    finally:
-        db.close()
+async def save_scan(user_id: str, type: str, target: str, results: dict):
+    scan = {
+        "user_id": user_id,
+        "type": type,
+        "target": target,
+        "status": "completed",
+        "results": results,
+        "created_at": datetime.utcnow()
+    }
+    result = await scans_collection.insert_one(scan)
+    return str(result.inserted_id)
 
-async def sast_scan(file: UploadFile):
+async def sast_scan(file: UploadFile, user_id: str):
     filename = file.filename
     ext = os.path.splitext(filename)[1].lower()
 
@@ -55,20 +49,12 @@ async def sast_scan(file: UploadFile):
         else:
             scan_path = file_path
 
-        # Run smart scan
         scan_result = run_scan(scan_path)
         vulnerabilities = scan_result["vulnerabilities"]
         languages = scan_result["languages"]
 
-         # ── AI ENRICHMENT ──────────────────────────────────────
-        # For each vulnerability Bandit/Semgrep found, ask the AI
-        # to also classify it and assess its risk
-        for vuln in vulnerabilities:
-            ai_result = enrich_with_ai(vuln.get("code", ""))
-            if ai_result:
-                vuln.update(ai_result)   # adds ai_vulnerability_type + ai_risk_level
-        # ──────────────────────────────────────────────────────
-
+        # ── AI LAYER ──────────────────────────────────────
+        vulnerabilities = analyze_vulnerabilities(vulnerabilities)
 
         result = {
             "type": "SAST",
@@ -83,9 +69,8 @@ async def sast_scan(file: UploadFile):
             "vulnerabilities": vulnerabilities
         }
 
-        scan_id = save_scan("SAST", filename, result)
+        scan_id = await save_scan(user_id, "SAST", filename, result)
         result["scan_id"] = scan_id
-
         return result
 
     finally:
@@ -95,7 +80,7 @@ async def sast_scan(file: UploadFile):
 class DASTRequest(BaseModel):
     url: str
 
-async def dast_scan(request: DASTRequest):
+async def dast_scan(request: DASTRequest, user_id: str):
     url = request.url
 
     if not url.startswith("http://") and not url.startswith("https://"):
@@ -105,6 +90,9 @@ async def dast_scan(request: DASTRequest):
         )
 
     vulnerabilities = run_dast_scan(url)
+
+    # ── AI LAYER ──────────────────────────────────────────
+    vulnerabilities = analyze_vulnerabilities(vulnerabilities)
 
     result = {
         "type": "DAST",
@@ -118,8 +106,6 @@ async def dast_scan(request: DASTRequest):
         "vulnerabilities": vulnerabilities
     }
 
-    scan_id = save_scan("DAST", url, result)
+    scan_id = await save_scan(user_id, "DAST", url, result)
     result["scan_id"] = scan_id
-
     return result
-

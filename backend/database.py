@@ -1,23 +1,21 @@
-from sqlalchemy import create_engine
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from motor.motor_asyncio import AsyncIOMotorClient
 from dotenv import load_dotenv
 import os
 
 load_dotenv()
 
-DATABASE_URL = os.getenv("DATABASE_URL")
+MONGODB_URL = os.getenv("MONGODB_URL", "mongodb://localhost:27017")
+DB_NAME = os.getenv("DB_NAME", "securescan")
 
-engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+client = AsyncIOMotorClient(MONGODB_URL)
+db = client[DB_NAME]
 
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+# Collections
+users_collection = db["users"]
+scans_collection = db["scans"]
 
-Base = declarative_base()
+async def connect_db():
+    print("✅ Connected to MongoDB")
 
-# This function will be used in every route to get a DB session
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+async def close_db():
+    client.close()
