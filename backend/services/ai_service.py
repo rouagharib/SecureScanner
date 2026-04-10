@@ -1,97 +1,109 @@
 import pickle
 import os
+import joblib
 
 # ── LOAD ALL MODELS ───────────────────────────────────────
-def load(path):
+def load_pickle(path):
     if not os.path.exists(path):
-        print(f"⚠️ Model not found: {path}")
+        print(f"⚠️  Not found: {path}")
         return None
-
     try:
         with open(path, "rb") as f:
-            model = pickle.load(f)
-            print(f"✅ Loaded: {path}")
-            return model
+            return pickle.load(f)
     except Exception as e:
-        print(f"❌ Failed to load {path}: {e}")
+        print(f"⚠️  Failed to load {path}: {e}")
         return None
 
-vulnerability_model = load("models/vulnerability_model.pkl")
-vectorizer = load("models/vectorizer.pkl")
-language_vectorizer = load("models/language_vectorizer.pkl")
-msr_model = load("models/msr_vulnerability_model.pkl")
-risk_model = load("models/risk_model.pkl")
-risk_vectorizer = load("models/risk_vectorizer.pkl")
-severity_model = load("models/severity_model.pkl")
+def load_joblib(path):
+    if not os.path.exists(path):
+        print(f"⚠️  Not found: {path}")
+        return None
+    try:
+        return joblib.load(path)
+    except Exception as e:
+        print(f"⚠️  Failed to load {path}: {e}")
+        return None
 
-loaded = sum(1 for m in [vulnerability_model, vectorizer, language_vectorizer, msr_model, risk_model, risk_vectorizer, severity_model] if m is not None)
-print(f"✅ AI Pipeline: {loaded}/7 models loaded")
+# Model 1 — Vulnerability confidence (safe/vulnerable)
+vulnerability_model = load_pickle("models/vulnerability_model.pkl")
+vectorizer = load_pickle("models/vectorizer.pkl")
 
+# Model 2 — Vulnerability type classifier (MSR dataset pipeline)
+msr_model = load_joblib("models/msr_vulnerability_model.pkl")
 
-# ── PREDICT LANGUAGE ──────────────────────────────────────
-def predict_language(text: str) -> str:
-    if language_vectorizer and msr_model:
-        try:
-            features = language_vectorizer.transform([text])
-            return msr_model.predict(features)[0]
-        except Exception as e:
-            print(f"Language prediction error: {e}")
-    return "unknown"
+# Model 3 — Risk assessment
+risk_model = load_pickle("models/risk_model.pkl")
+risk_vectorizer = load_pickle("models/risk_vectorizer.pkl")
 
+# Model 4 — Severity prediction (pipeline)
+severity_model = load_joblib("models/severity_model.pkl")
 
-# ── PREDICT SEVERITY ──────────────────────────────────────
-def predict_severity(text: str) -> str:
-    if vectorizer and severity_model:
-        try:
-            features = vectorizer.transform([text])
-            return severity_model.predict(features)[0]
-        except Exception as e:
-            print(f"Severity prediction error: {e}")
-    return None
+loaded = sum(1 for m in [vulnerability_model, vectorizer, msr_model, risk_model, risk_vectorizer, severity_model] if m is not None)
+print(f"✅ AI Pipeline: {loaded}/6 models loaded")
 
 
-# ── PREDICT RISK ──────────────────────────────────────────
-def predict_risk(text: str) -> str:
-    if risk_vectorizer and risk_model:
-        try:
-            features = risk_vectorizer.transform([text])
-            return risk_model.predict(features)[0]
-        except Exception as e:
-            print(f"Risk prediction error: {e}")
-    return None
-
-
-# ── PREDICT CONFIDENCE ────────────────────────────────────
+# ── MODEL 1: CONFIDENCE SCORE ─────────────────────────────
 def predict_confidence(text: str) -> int:
-    if vectorizer and vulnerability_model:
+    if vulnerability_model and vectorizer:
         try:
             features = vectorizer.transform([text])
             proba = vulnerability_model.predict_proba(features)[0]
-            return round(proba[1] * 100)
+            classes = list(vulnerability_model.classes_)
+            if "vulnerable" in classes:
+                idx = classes.index("vulnerable")
+            else:
+                idx = 1
+            return round(proba[idx] * 100)
         except Exception as e:
-            print(f"Confidence prediction error: {e}")
-    return rule_based_score_from_text(text)
+            print(f"Confidence error: {e}")
+    return rule_based_confidence(text)
 
 
-# ── FALLBACK RULE-BASED ───────────────────────────────────
-def rule_based_score(vuln: dict) -> int:
-    severity = vuln.get("severity", "low")
-    vuln_type = str(vuln.get("type", "")).lower()
-    base = {"critical": 90, "high": 75, "medium": 55, "low": 35}.get(severity, 50)
-    if any(t in vuln_type for t in ["sql injection", "xss", "hardcoded", "shell"]):
-        base = min(base + 10, 99)
-    return base
+# ── MODEL 2: VULNERABILITY TYPE ───────────────────────────
+def predict_vuln_type(text: str) -> str:
+    if msr_model:
+        try:
+            result = msr_model.predict([text])[0]
+            return str(result)
+        except Exception as e:
+            print(f"Vuln type error: {e}")
+    return None
 
-def rule_based_score_from_text(text: str) -> int:
+
+# ── MODEL 3: RISK LEVEL ───────────────────────────────────
+def predict_risk(text: str) -> str:
+    if risk_model and risk_vectorizer:
+        try:
+            features = risk_vectorizer.transform([text])
+            result = risk_model.predict(features)[0]
+            return str(result)
+        except Exception as e:
+            print(f"Risk error: {e}")
+    return None
+
+
+# ── MODEL 4: SEVERITY ─────────────────────────────────────
+def predict_severity(text: str) -> str:
+    if severity_model:
+        try:
+            result = severity_model.predict([text])[0]
+            return str(result)
+        except Exception as e:
+            print(f"Severity error: {e}")
+    return None
+
+
+# ── FALLBACK ──────────────────────────────────────────────
+def rule_based_confidence(text: str) -> int:
     text = text.lower()
-    if any(k in text for k in ["sql", "select", "insert"]):
+    if any(k in text for k in ["sql", "select", "insert", "delete"]):
         return 75
-    if any(k in text for k in ["xss", "innerhtml", "script"]):
-        return 70
-    if any(k in text for k in ["password", "secret", "token"]):
-        return 65
-    if any(k in text for k in ["eval", "exec", "shell"]):
+    if any(k in text for k in ["xss", "innerhtml", "script", "document.write"]):
         return 72
+    if any(k in text for k in ["password", "secret", "token", "api_key"]):
+        return 68
+    if any(k in text for k in ["eval", "exec", "shell", "subprocess"]):
+        return 70
     return 45
 
 
@@ -106,7 +118,7 @@ def analyze_vulnerabilities(vulnerabilities: list) -> list:
 
         vuln_copy = vuln.copy()
 
-        # 1. Confidence score
+        # 1 — Confidence score (is it really vulnerable?)
         confidence = predict_confidence(text)
         vuln_copy["confidence"] = confidence
         vuln_copy["ai_verdict"] = (
@@ -115,20 +127,20 @@ def analyze_vulnerabilities(vulnerabilities: list) -> list:
             else "Review"
         )
 
-        # 2. Predicted language
-        lang = predict_language(text)
-        if lang and lang != "unknown":
-            vuln_copy["detected_language"] = lang
+        # 2 — Vulnerability type from MSR model
+        vuln_type = predict_vuln_type(text)
+        if vuln_type:
+            vuln_copy["ai_vuln_type"] = vuln_type
 
-        # 3. AI predicted severity (keeps original if prediction fails)
-        ai_severity = predict_severity(text)
-        if ai_severity:
-            vuln_copy["ai_severity"] = ai_severity
-
-        # 4. Risk level
+        # 3 — Risk level
         risk = predict_risk(text)
         if risk:
             vuln_copy["risk_level"] = risk
+
+        # 4 — AI predicted severity
+        ai_severity = predict_severity(text)
+        if ai_severity:
+            vuln_copy["ai_severity"] = ai_severity
 
         result.append(vuln_copy)
 

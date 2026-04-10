@@ -1,16 +1,27 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
-import { LayoutDashboard, Code2, Globe, FileText, LogOut, ShieldCheck, ChevronRight } from 'lucide-react'
+import { 
+  LayoutDashboard, 
+  Code2, 
+  Globe, 
+  FileText, 
+  LogOut, 
+  ShieldCheck, 
+  ChevronRight,
+  Settings
+} from 'lucide-react'
 import './Layout.css'
-
-const nav = [
-  { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/sast', icon: Code2, label: 'Code Scanner' },
-  { to: '/dast', icon: Globe, label: 'URL Scanner' },
-  { to: '/report', icon: FileText, label: 'Reports' },
-]
 
 export default function Layout({ user, onLogout }) {
   const navigate = useNavigate()
+
+  // Nav is inside the component so it can access user
+  const nav = [
+    ...(user?.role === 'admin' ? [{ to: '/admin', icon: Settings, label: 'Admin' }] : []),
+    { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+    { to: '/sast', icon: Code2, label: 'Code Scanner' },
+    { to: '/dast', icon: Globe, label: 'URL Scanner' },
+    { to: '/report', icon: FileText, label: 'Reports' },
+  ]
 
   const handleLogout = () => {
     onLogout()
@@ -38,10 +49,10 @@ export default function Layout({ user, onLogout }) {
 
         <div className="sidebar-footer">
           <div className="user-info">
-            <div className="user-avatar">{user.name.charAt(0)}</div>
+            <div className="user-avatar">{user?.name?.charAt(0)}</div>
             <div className="user-meta">
-              <span className="user-name">{user.name}</span>
-              <span className="user-email">{user.email}</span>
+              <span className="user-name">{user?.name}</span>
+              <span className="user-email">{user?.email}</span>
             </div>
           </div>
           <button className="logout-btn" onClick={handleLogout} title="Sign out">

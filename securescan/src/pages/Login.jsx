@@ -28,6 +28,7 @@ export default function Login({ onLogin }) {
       })
 
       const data = await response.json()
+      console.log('Login response:', data)
 
       if (!response.ok) {
         setError(data.detail || 'Invalid email or password')
@@ -38,8 +39,14 @@ export default function Login({ onLogin }) {
       localStorage.setItem('token', data.access_token)
       localStorage.setItem('user', JSON.stringify(data.user))
 
+      console.log('user role:', data.user?.role)
+      console.log('full data:', JSON.stringify(data))
       onLogin(data.user)
-      navigate('/dashboard')
+      if (data.user?.role === 'admin') {
+        navigate('/admin')
+      } else {
+        navigate('/dashboard')
+      }
 
     } catch (err) {
       setError('Could not connect to server. Make sure the backend is running.')

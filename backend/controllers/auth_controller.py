@@ -43,15 +43,19 @@ async def login(request: LoginRequest):
             detail="Invalid email or password"
         )
 
-    token = create_access_token({"sub": user["email"], "id": str(user["_id"])})
-
+    token = create_access_token({
+        "sub": user["email"],
+        "id": str(user["_id"]),
+        "role": user.get("role", "user")
+    })
     # Send login notification email
     send_login_notification(request.email, user["name"])
 
     return {
         "access_token": token,
         "token_type": "bearer",
-        "user": format_user(user)
+        "user": {**format_user(user), "role": user.get("role", "user")},
+        "role": user.get("role", "user")
     }
 
 async def forgot_password(request: ForgotPasswordRequest):
@@ -70,5 +74,5 @@ async def reset_password(request: ResetPasswordRequest):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Password must be at least 8 characters"
-        )
+        ) 
     return {"message": "Password reset successfully. You can now log in."}

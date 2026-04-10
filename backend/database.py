@@ -15,7 +15,11 @@ users_collection = db["users"]
 scans_collection = db["scans"]
 
 async def connect_db():
-    print("✅ Connected to MongoDB")
-
+    try:
+        # Ping the database
+        await client.admin.command("ping")
+        print("✅ Connected to MongoDB")
+    except Exception as e:
+        print("❌ Failed to connect to MongoDB:", e)
 async def close_db():
     client.close()
