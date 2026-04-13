@@ -2,13 +2,7 @@ import smtplib
 import os
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from dotenv import load_dotenv
-
-load_dotenv()
-
-MAIL_EMAIL = os.getenv("MAIL_EMAIL")
-MAIL_PASSWORD = os.getenv("MAIL_PASSWORD")
-APP_URL = "http://localhost:5173"
+from config import MAIL_EMAIL, MAIL_PASSWORD, APP_URL
 
 def send_email(to: str, subject: str, html_content: str):
     try:

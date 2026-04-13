@@ -1,20 +1,15 @@
 import os
 import shutil
 import tempfile
+import logging
 import git
 from services.sast_service import run_scan
-# Tell GitPython where Git is on Windows
-os.environ['GIT_PYTHON_GIT_EXECUTABLE'] = 'C:\\Program Files\\Git\\bin\\git.exe'
+from config import SKIP_FOLDERS, MAX_FILE_SIZE, GIT_EXECUTABLE
 
-# folders to skip
-SKIP_FOLDERS = {
-    'node_modules', '.git', 'vendor', 'dist', 'build',
-    '__pycache__', '.venv', 'venv', 'env', 'target',
-    'bin', 'obj', '.idea', '.vscode'
-}
+# Configure Git executable path
+os.environ.setdefault('GIT_PYTHON_GIT_EXECUTABLE', GIT_EXECUTABLE)
 
-# max file size 500KB
-MAX_FILE_SIZE = 500 * 1024
+logger = logging.getLogger(__name__)
 
 def clean_repo(path: str):
     """Remove unnecessary folders to speed up scanning"""
@@ -25,7 +20,8 @@ def clean_repo(path: str):
             try:
                 if os.path.getsize(file_path) > MAX_FILE_SIZE:
                     os.remove(file_path)
-            except:
+            except Exception as e:
+                logger.debug(f"Failed to remove large file {file_path}: {e}")
                 continue
 
 def clone_and_scan(repo_url: str) -> dict:

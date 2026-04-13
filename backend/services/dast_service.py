@@ -1,9 +1,14 @@
 import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin, urlparse
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Disable SSL warnings
-requests.packages.urllib3.disable_warnings()
+requests.packages.urllib3.disable_warnings(
+    requests.packages.urllib3.exceptions.InsecureRequestWarning
+)
 
 HEADERS = {
     "User-Agent": "SecureScan Security Scanner"
@@ -30,7 +35,8 @@ def crawl(base_url: str, max_pages: int = 10) -> list:
                 if urlparse(link).netloc == urlparse(base_url).netloc:
                     if link not in visited:
                         to_visit.append(link)
-        except:
+        except Exception as e:
+            logger.debug(f"Crawl failed for {url}: {e}")
             continue
 
     return found
@@ -42,7 +48,8 @@ def get_forms(url: str) -> list:
         res = requests.get(url, headers=HEADERS, timeout=5, verify=False)
         soup = BeautifulSoup(res.text, "html.parser")
         return soup.find_all("form")
-    except:
+    except Exception as e:
+        logger.debug(f"Failed to get forms from {url}: {e}")
         return []
 
 def get_form_details(form) -> dict:
@@ -80,8 +87,8 @@ def test_xss(url: str, form, form_details: dict) -> dict | None:
                 "fix": "Encode all output using context-appropriate escaping. Use a library like DOMPurify on the frontend.",
                 "response": f"Payload reflected in response — {res.status_code}"
             }
-    except:
-        pass
+    except Exception as e:
+        logger.debug(f"XSS test failed for {target}: {e}")
     return None
 
 def test_sql_injection(url: str, form, form_details: dict) -> dict | None:
@@ -109,8 +116,8 @@ def test_sql_injection(url: str, form, form_details: dict) -> dict | None:
                     "fix": "Use parameterized queries or prepared statements. Never concatenate user input into SQL queries.",
                     "response": f"SQL error found in response — {res.status_code}"
                 }
-    except:
-        pass
+    except Exception as e:
+        logger.debug(f"SQLi test failed for {target}: {e}")
     return None
 
 def check_security_headers(url: str) -> list:
@@ -137,8 +144,8 @@ def check_security_headers(url: str) -> list:
                     "fix": fix,
                     "response": f"Header '{header}' not found in server response"
                 })
-    except:
-        pass
+    except Exception as e:
+        logger.debug(f"Security header check failed for {url}: {e}")
     return vulnerabilities
 
 # ── 4. MAIN SCAN FUNCTION ─────────────────────────────────
