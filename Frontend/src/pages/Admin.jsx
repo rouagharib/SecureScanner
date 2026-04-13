@@ -1,10 +1,18 @@
 import { useState, useEffect } from 'react'
 import { Users, ShieldAlert, BarChart3, Trash2, RefreshCw, Search, Ban, UserCheck, UserPlus, AlertTriangle } from 'lucide-react'
 import { useToast } from '../components/Toast'
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  PieChart, Pie, Cell, AreaChart, Area
+} from 'recharts'
 import '../components/Layout.css'
 import './Admin.css'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000'
+
+const CHART_COLORS = ['#6366f1', '#8b5cf6', '#a78bfa', '#c4b5fd', '#818cf8', '#4f46e5']
+const SEVERITY_COLORS = { critical: '#dc2626', high: '#ea580c', medium: '#d97706', low: '#059669' }
+const SCAN_TYPE_COLORS = { SAST: '#6366f1', DAST: '#8b5cf6', Git: '#059669' }
 
 export default function Admin() {
   const { addToast } = useToast()
@@ -14,7 +22,7 @@ export default function Admin() {
   const [tab, setTab] = useState('overview')
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
-  const [confirmAction, setConfirmAction] = useState(null) // { type, userId, userName, action }
+  const [confirmAction, setConfirmAction] = useState(null)
 
   const token = localStorage.getItem('token')
   const headers = { 'Authorization': `Bearer ${token}` }
@@ -75,6 +83,46 @@ export default function Admin() {
     u.email.toLowerCase().includes(search.toLowerCase())
   )
 
+  // ── CHART DATA ────────────────────────────────────────────
+  const vulnTypeChartData = stats?.top_vulnerability_types?.map(v => ({
+    name: v.type.length > 20 ? v.type.slice(0, 20) + '…' : v.type,
+    count: v.count,
+    full: v.type
+  })) || []
+
+  const scanTypeData = scans.reduce((acc, scan) => {
+    const type = scan.type || 'Unknown'
+    acc[type] = (acc[type] || 0) + 1
+    return acc
+  }, {})
+  const scanTypeChartData = Object.entries(scanTypeData).map(([name, value]) => ({ name, value }))
+
+  const severityData = scans.reduce((acc, scan) => {
+    acc.critical += scan.critical || 0
+    acc.high += scan.high || 0
+    acc.medium += scan.medium || 0
+    acc.low += scan.low || 0
+    return acc
+  }, { critical: 0, high: 0, medium: 0, low: 0 })
+  const severityChartData = Object.entries(severityData)
+    .filter(([, value]) => value > 0)
+    .map(([name, value]) => ({ name: name.charAt(0).toUpperCase() + name.slice(1), value }))
+
+  // Users by role
+  const roleData = users.reduce((acc, u) => {
+    acc[u.role] = (acc[u.role] || 0) + 1
+    return acc
+  }, {})
+  const roleChartData = Object.entries(roleData).map(([name, value]) => ({ name: name.charAt(0).toUpperCase() + name.slice(1), value }))
+
+  // User status
+  const statusData = users.reduce((acc, u) => {
+    const s = u.status || 'active'
+    acc[s] = (acc[s] || 0) + 1
+    return acc
+  }, {})
+  const statusChartData = Object.entries(statusData).map(([name, value]) => ({ name: name.charAt(0).toUpperCase() + name.slice(1), value }))
+
   return (
     <div className="admin-page">
       {/* Confirmation Modal */}
@@ -99,17 +147,11 @@ export default function Admin() {
               </button>
               <button className="btn btn-sm" style={{ background: confirmAction.type === 'delete' ? 'var(--danger)' : 'var(--accent)', color: 'white' }}
                 onClick={() => {
-                  if (confirmAction.type === 'delete') {
-                    deleteUser(confirmAction.userId, confirmAction.userName)
-                  } else if (confirmAction.type === 'ban') {
-                    updateUser(confirmAction.userId, { status: 'banned' }, confirmAction.userName)
-                  } else if (confirmAction.type === 'unban') {
-                    updateUser(confirmAction.userId, { status: 'active' }, confirmAction.userName)
-                  } else if (confirmAction.type === 'promote') {
-                    updateUser(confirmAction.userId, { role: 'admin' }, confirmAction.userName)
-                  } else if (confirmAction.type === 'demote') {
-                    updateUser(confirmAction.userId, { role: 'user' }, confirmAction.userName)
-                  }
+                  if (confirmAction.type === 'delete') deleteUser(confirmAction.userId, confirmAction.userName)
+                  else if (confirmAction.type === 'ban') updateUser(confirmAction.userId, { status: 'banned' }, confirmAction.userName)
+                  else if (confirmAction.type === 'unban') updateUser(confirmAction.userId, { status: 'active' }, confirmAction.userName)
+                  else if (confirmAction.type === 'promote') updateUser(confirmAction.userId, { role: 'admin' }, confirmAction.userName)
+                  else if (confirmAction.type === 'demote') updateUser(confirmAction.userId, { role: 'user' }, confirmAction.userName)
                   setConfirmAction(null)
                 }}
               >
@@ -174,28 +216,171 @@ export default function Admin() {
                 ))}
               </div>
 
-              <div className="card">
+              {/* ── CHARTS ROW ──────────────────────────────────── */}
+              <div className="charts-grid">
+                {/* Severity Distribution — Donut */}
+                <div className="card chart-card">
+                  <div className="card-header">
+                    <span className="card-title">Severity Distribution</span>
+                  </div>
+                  <div className="chart-body">
+                    {severityChartData.length > 0 ? (
+                      <ResponsiveContainer width="100%" height={260}>
+                        <PieChart>
+                          <Pie
+                            data={severityChartData}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={65}
+                            outerRadius={95}
+                            paddingAngle={4}
+                            dataKey="value"
+                            stroke="none"
+                          >
+                            {severityChartData.map((entry, i) => (
+                              <Cell key={i} fill={SEVERITY_COLORS[entry.name.toLowerCase()] || CHART_COLORS[i % CHART_COLORS.length]} />
+                            ))}
+                          </Pie>
+                          <Tooltip
+                            formatter={(val) => [val, 'Findings']}
+                            contentStyle={{ borderRadius: 10, border: 'none', boxShadow: 'var(--shadow)' }}
+                          />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <div className="empty-chart"><p>No severity data</p></div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Scan Types — Donut */}
+                <div className="card chart-card">
+                  <div className="card-header">
+                    <span className="card-title">Scan Types</span>
+                  </div>
+                  <div className="chart-body">
+                    {scanTypeChartData.length > 0 ? (
+                      <ResponsiveContainer width="100%" height={260}>
+                        <PieChart>
+                          <Pie
+                            data={scanTypeChartData}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={65}
+                            outerRadius={95}
+                            paddingAngle={4}
+                            dataKey="value"
+                            stroke="none"
+                          >
+                            {scanTypeChartData.map((entry, i) => (
+                              <Cell key={i} fill={SCAN_TYPE_COLORS[entry.name] || CHART_COLORS[i % CHART_COLORS.length]} />
+                            ))}
+                          </Pie>
+                          <Tooltip
+                            formatter={(val) => [val, 'Scans']}
+                            contentStyle={{ borderRadius: 10, border: 'none', boxShadow: 'var(--shadow)' }}
+                          />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <div className="empty-chart"><p>No scan data</p></div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Users by Role — Donut */}
+                <div className="card chart-card">
+                  <div className="card-header">
+                    <span className="card-title">Users by Role</span>
+                  </div>
+                  <div className="chart-body">
+                    {roleChartData.length > 0 ? (
+                      <ResponsiveContainer width="100%" height={260}>
+                        <PieChart>
+                          <Pie
+                            data={roleChartData}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={65}
+                            outerRadius={95}
+                            paddingAngle={4}
+                            dataKey="value"
+                            stroke="none"
+                          >
+                            {roleChartData.map((entry, i) => (
+                              <Cell key={i} fill={entry.name === 'Admin' ? '#dc2626' : '#6366f1'} />
+                            ))}
+                          </Pie>
+                          <Tooltip
+                            formatter={(val) => [val, 'Users']}
+                            contentStyle={{ borderRadius: 10, border: 'none', boxShadow: 'var(--shadow)' }}
+                          />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <div className="empty-chart"><p>No role data</p></div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* ── FULL WIDTH CHART ────────────────────────────── */}
+              <div className="card chart-card-full">
                 <div className="card-header">
                   <span className="card-title">Top Vulnerability Types</span>
+                </div>
+                <div className="chart-body">
+                  {vulnTypeChartData.length > 0 ? (
+                    <ResponsiveContainer width="100%" height={300}>
+                      <BarChart data={vulnTypeChartData} margin={{ top: 10, right: 20, left: 20, bottom: 5 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" opacity={0.4} />
+                        <XAxis dataKey="name" tick={{ fontSize: 11, fill: 'var(--text3)' }} angle={-30} textAnchor="end" height={80} />
+                        <YAxis tick={{ fontSize: 11, fill: 'var(--text3)' }} />
+                        <Tooltip
+                          contentStyle={{ borderRadius: 10, border: 'none', boxShadow: 'var(--shadow)' }}
+                          formatter={(val) => [val, 'Count']}
+                          labelStyle={{ fontWeight: 600 }}
+                        />
+                        <Bar dataKey="count" fill="url(#barGradient)" radius={[6, 6, 0, 0]} maxBarSize={60} />
+                        <defs>
+                          <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="#6366f1" />
+                            <stop offset="100%" stopColor="#8b5cf6" />
+                          </linearGradient>
+                        </defs>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="empty-chart"><p>No vulnerability data</p></div>
+                  )}
+                </div>
+              </div>
+
+              {/* ── STATUS TABLE ────────────────────────────────── */}
+              <div className="card">
+                <div className="card-header">
+                  <span className="card-title">User Status Breakdown</span>
                 </div>
                 <div className="card-body" style={{ padding: 0 }}>
                   <table className="scan-table">
                     <thead>
                       <tr>
-                        <th>#</th>
-                        <th>Vulnerability Type</th>
+                        <th>Status</th>
                         <th>Count</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {stats.top_vulnerability_types.length === 0 ? (
-                        <tr><td colSpan={3} style={{ textAlign: 'center', color: 'var(--text3)', padding: 24 }}>No vulnerabilities found</td></tr>
+                      {statusChartData.length === 0 ? (
+                        <tr><td colSpan={2} style={{ textAlign: 'center', color: 'var(--text3)', padding: 24 }}>No user data</td></tr>
                       ) : (
-                        stats.top_vulnerability_types.map((v, i) => (
-                          <tr key={i}>
-                            <td style={{ color: 'var(--text3)', width: 40 }}>{i + 1}</td>
-                            <td>{v.type}</td>
-                            <td><span className="badge badge-info">{v.count}</span></td>
+                        statusChartData.map(s => (
+                          <tr key={s.name}>
+                            <td>
+                              <span className={`badge ${s.name === 'Active' ? 'badge-success' : s.name === 'Banned' ? 'badge-critical' : 'badge-info'}`}>
+                                {s.name}
+                              </span>
+                            </td>
+                            <td><span className="badge badge-info">{s.value}</span></td>
                           </tr>
                         ))
                       )}
@@ -209,7 +394,6 @@ export default function Admin() {
           {/* Users Tab */}
           {tab === 'users' && (
             <div>
-              {/* Search */}
               <div className="admin-search">
                 <Search size={15} />
                 <input

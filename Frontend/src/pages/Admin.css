@@ -142,6 +142,72 @@
   border: 1px solid rgba(255,255,255,0.8);
 }
 
+/* ── CHARTS ──────────────────────────────────────────────────── */
+.charts-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.chart-card {
+  border: 1.5px solid rgba(255,255,255,0.7);
+  background: rgba(255,255,255,0.85);
+  backdrop-filter: blur(8px);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: fadeInUp 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  animation-fill-mode: both;
+}
+
+.chart-card:nth-child(1) { animation-delay: 0.05s; }
+.chart-card:nth-child(2) { animation-delay: 0.1s; }
+.chart-card:nth-child(3) { animation-delay: 0.15s; }
+
+.chart-card:hover {
+  box-shadow: var(--shadow);
+  transform: translateY(-2px);
+}
+
+.chart-body {
+  padding: 12px 16px 16px;
+}
+
+.chart-card-full {
+  border: 1.5px solid rgba(255,255,255,0.7);
+  background: rgba(255,255,255,0.85);
+  backdrop-filter: blur(8px);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  margin-bottom: 24px;
+  animation: fadeInUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) 0.1s both;
+}
+
+.chart-card-full:hover {
+  box-shadow: var(--shadow);
+  transform: translateY(-1px);
+}
+
+.empty-chart {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
+  color: var(--text3);
+  font-size: 14px;
+}
+
+/* Recharts tooltip override */
+.recharts-default-tooltip {
+  background: rgba(255,255,255,0.95) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 10px !important;
+  padding: 8px 14px !important;
+  font-family: var(--font) !important;
+  box-shadow: var(--shadow) !important;
+}
+
 /* ── BADGE SUCCESS ───────────────────────────────────────── */
 .badge-success {
   background: linear-gradient(135deg, #ecfdf5, #d1fae5);
@@ -167,6 +233,10 @@
     gap: 10px;
   }
 
+  .charts-grid {
+    grid-template-columns: 1fr;
+  }
+
   .scan-table {
     display: block;
     overflow-x: auto;
@@ -180,7 +250,7 @@
 
 @media (max-width: 480px) {
   .confirm-modal {
-    padding: 24px;
+    padding: 20px;
     width: 95%;
   }
 
@@ -190,11 +260,15 @@
   }
 
   .admin-tab {
-    padding: 7px 10px;
+    padding: 6px 10px;
     font-size: 12px;
   }
 
   .admin-stat-value {
     font-size: 28px;
+  }
+
+  .chart-body {
+    padding: 8px 10px 12px;
   }
 }
