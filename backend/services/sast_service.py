@@ -34,6 +34,11 @@ def run_bandit_scan(file_path: str) -> list:
 
 # ── SEMGREP (multi-language) ───────────────────────────────
 def run_semgrep_scan(file_path: str) -> list:
+    import shutil
+    if not shutil.which("semgrep"):
+        print("⚠️  Semgrep not found in PATH — skipping non-Python files")
+        return []
+
     env = os.environ.copy()
     env["PYTHONIOENCODING"] = "utf-8"
     env["PYTHONUTF8"] = "1"
@@ -122,8 +127,14 @@ def run_scan(file_path: str) -> dict:
 
 # ── HELPERS ────────────────────────────────────────────────
 def extract_zip(zip_path: str, extract_to: str):
+    import zipfile
+    extract_path = Path(extract_to).resolve()
     with zipfile.ZipFile(zip_path, 'r') as z:
-        z.extractall(extract_to)
+        for member in z.namelist():
+            member_path = (extract_path / member).resolve()
+            if not str(member_path).startswith(str(extract_path)):
+                raise ValueError(f"Zip-slip attack detected: {member}")
+        z.extractall(extract_path)
 
 
 def get_bandit_fix(test_id: str) -> str:

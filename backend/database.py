@@ -1,11 +1,5 @@
 from motor.motor_asyncio import AsyncIOMotorClient
-from dotenv import load_dotenv
-import os
-
-load_dotenv()
-
-MONGODB_URL = os.getenv("MONGODB_URL", "mongodb://localhost:27017")
-DB_NAME = os.getenv("DB_NAME", "securescan")
+from config import MONGODB_URL, DB_NAME
 
 client = AsyncIOMotorClient(MONGODB_URL)
 db = client[DB_NAME]
@@ -13,6 +7,8 @@ db = client[DB_NAME]
 # Collections
 users_collection = db["users"]
 scans_collection = db["scans"]
+verification_tokens_collection = db["verification_tokens"]
+password_reset_tokens = db["password_reset_tokens"]
 
 async def connect_db():
     try:
