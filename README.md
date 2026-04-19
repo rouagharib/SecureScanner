@@ -499,6 +499,6 @@ This project was developed as part of a PFE (Projet de Fin d'Études / Graduatio
 
 ## 🙏 Credits
 
-**Developed by:** Rouag Harib & Team  
+**Developed by:** Roua Gharib & Safa Ben Haj Ali
 **Project:** SecureScan — AI-Powered Security Vulnerability Scanner  
 **Year:** 2026
