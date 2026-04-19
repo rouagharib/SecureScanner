@@ -172,6 +172,8 @@ body::before {
   animation: spin 0.65s linear infinite;
 }
 
+
 @keyframes spin {
+  from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
 }

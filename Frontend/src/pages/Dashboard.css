@@ -255,3 +255,35 @@
     padding: 16px;
   }
 }
+/* Add to the end of your existing Dashboard.css */
+
+/* Upgrade banner */
+.upgrade-banner {
+  padding: 16px 20px;
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.upgrade-banner:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow);
+}
+
+.upgrade-banner.urgent {
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.85;
+  }
+}
+
+/* Empty state buttons */
+.empty-state .btn-sm {
+  margin: 0 4px;
+}

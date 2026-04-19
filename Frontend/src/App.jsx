@@ -10,7 +10,8 @@ import Layout from './components/Layout'
 import VerifyEmail from './pages/VerifyEmail'
 import ResetPassword from './pages/ResetPassword'
 import Admin from './pages/Admin'
-
+import Pricing from './pages/Pricing'  // Add this import
+import PaymentSuccess from './pages/PaymentSuccess'  // Add this import (create next)
 
 export default function App() {
   const [user, setUser] = useState(null)
@@ -25,6 +26,7 @@ export default function App() {
   const handleLogin = (userData) => {
     setUser(userData)
   }
+  
   const handleLogout = () => {
     localStorage.removeItem('token')
     localStorage.removeItem('user')
@@ -38,17 +40,18 @@ export default function App() {
         <Route path="/register" element={!user ? <Register onRegister={handleLogin} /> : <Navigate to={user?.role === 'admin' ? '/admin' : '/dashboard'} />} />
         <Route path="/verify-email" element={<VerifyEmail />} />
         <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/payment/success" element={<PaymentSuccess />} />  {/* Add this route */}
         <Route path="/" element={user ? <Layout user={user} onLogout={handleLogout} /> : <Navigate to="/login" />}>
           <Route index element={<Navigate to={user?.role === 'admin' ? '/admin' : '/dashboard'} replace />} />
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="sast" element={<SASTScanner />} />
           <Route path="dast" element={<DASTScanner />} />
           <Route path="report" element={<ReportViewer />} />
+          <Route path="pricing" element={<Pricing />} />  {/* Add this route */}
           <Route
             path="admin"
             element={user?.role === 'admin' ? <Admin /> : <Navigate to="/dashboard" />}
           />
-          
         </Route>
       </Routes>
     </BrowserRouter>

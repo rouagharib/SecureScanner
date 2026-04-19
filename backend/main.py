@@ -6,6 +6,7 @@ from routes.auth import router as auth_router
 from routes.scan import router as scan_router
 from routes.history import router as history_router
 from routes.admin import router as admin_router
+from routes.payments import router as payments_router  # Add this
 from config import APP_URL
 from urllib.parse import urlparse
 
@@ -48,10 +49,12 @@ async def shutdown():
     await close_db()
 
 
+# Include all routers
 app.include_router(auth_router)
 app.include_router(scan_router)
 app.include_router(history_router)
 app.include_router(admin_router)
+app.include_router(payments_router)  # Add payments router
 
 
 @app.get("/")
@@ -66,3 +69,5 @@ def health_check():
         "status": "healthy",
         "service": "SecureScan API"
     }
+
+# REMOVE the webhook endpoint entirely - no /webhooks/stripe endpoint needed

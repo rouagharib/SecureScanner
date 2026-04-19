@@ -7,6 +7,10 @@ db = client[DB_NAME]
 # Collections
 users_collection = db["users"]
 scans_collection = db["scans"]
+subscriptions_collection = db["subscriptions"]  # Track user subscriptions
+payments_collection = db["payments"]            # Payment history
+usage_collection = db["usage"]  # Add this line
+
 verification_tokens_collection = db["verification_tokens"]
 password_reset_tokens = db["password_reset_tokens"]
 

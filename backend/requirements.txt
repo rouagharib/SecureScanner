@@ -26,7 +26,7 @@ typing-inspection==0.4.2
 typing_extensions==4.15.0
 uvicorn==0.41.0
 bandit==1.8.3
-# semgrep — not supported on Windows. Use WSL: pip install semgrep
+# semgrep ï¿½ not supported on Windows. Use WSL: pip install semgrep
 GitPython==3.1.44
 requests==2.32.3
 beautifulsoup4==4.13.3
@@ -37,3 +37,5 @@ joblib==1.4.2
 scikit-learn==1.7.2
 numpy==2.2.3
 slowapi==0.1.9 
+stripe==10.0.0
+

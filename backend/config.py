@@ -22,12 +22,25 @@ GIT_EXECUTABLE = os.getenv("GIT_EXECUTABLE", "git")
 
 # Scanning
 MAX_SCAN_PAGES = int(os.getenv("MAX_SCAN_PAGES", "10"))
-MAX_FILE_SIZE = int(os.getenv("MAX_FILE_SIZE", str(500 * 1024)))  # 500KB
+MAX_FILE_SIZE = int(os.getenv("MAX_FILE_SIZE", str(500 * 1024)))
 ALLOWED_EXTENSIONS = {".py", ".js", ".jsx", ".ts", ".tsx", ".java", ".php", ".go", ".rb", ".c", ".cpp", ".zip"}
+SKIP_FOLDERS = {'node_modules', '.git', 'vendor', 'dist', 'build', '__pycache__', '.venv', 'venv', 'env', 'target', 'bin', 'obj', '.idea', '.vscode'}
 
-# Skip folders in git scan
-SKIP_FOLDERS = {
-    'node_modules', '.git', 'vendor', 'dist', 'build',
-    '__pycache__', '.venv', 'venv', 'env', 'target',
-    'bin', 'obj', '.idea', '.vscode'
+# Stripe Configuration
+STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY", "")
+STRIPE_PUBLISHABLE_KEY = os.getenv("STRIPE_PUBLISHABLE_KEY", "")
+
+# Stripe Price IDs
+STRIPE_PRO_MONTHLY_PRICE_ID = os.getenv("STRIPE_PRO_MONTHLY_PRICE_ID", "")
+STRIPE_PRO_YEARLY_PRICE_ID = os.getenv("STRIPE_PRO_YEARLY_PRICE_ID", "")
+STRIPE_ENTERPRISE_MONTHLY_PRICE_ID = os.getenv("STRIPE_ENTERPRISE_MONTHLY_PRICE_ID", "")
+STRIPE_ENTERPRISE_YEARLY_PRICE_ID = os.getenv("STRIPE_ENTERPRISE_YEARLY_PRICE_ID", "")
+
+# Plan limits
+PLAN_LIMITS = {
+    "free": {"scans_per_month": 5, "price": 0},
+    "pro_monthly": {"scans_per_month": 100, "price": 12.00, "price_id": STRIPE_PRO_MONTHLY_PRICE_ID},
+    "pro_yearly": {"scans_per_month": 100, "price": 9.00, "price_id": STRIPE_PRO_YEARLY_PRICE_ID},
+    "enterprise_monthly": {"scans_per_month": 999999, "price": 39.00, "price_id": STRIPE_ENTERPRISE_MONTHLY_PRICE_ID},
+    "enterprise_yearly": {"scans_per_month": 999999, "price": 29.00, "price_id": STRIPE_ENTERPRISE_YEARLY_PRICE_ID},
 }
