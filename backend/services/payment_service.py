@@ -5,11 +5,6 @@ from database import subscriptions_collection, users_collection
 
 stripe.api_key = STRIPE_SECRET_KEY
 
-# Price IDs (create these in Stripe Dashboard)
-PRICE_IDS = {
-    "pro": "price_1TNw1pBAnRawt1nvYmpIXRqA",      # $12/month
-    "team": "price_1TNw4LBAnRawt1nvGZJ4qcak",    # $9/month
-}
 
 async def create_checkout_session(user_id: str, user_email: str, plan: str, success_url: str, cancel_url: str):
     """Create Stripe checkout session"""
