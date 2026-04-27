@@ -1,0 +1,4 @@
+{
+    "python-envs.defaultEnvManager": "ms-python.python:venv",
+    "python.defaultInterpreterPath": "C:\\Users\\ghjes\\OneDrive\\Desktop\\SecureScanner\\venv\\Scripts\\python.exe"
+}

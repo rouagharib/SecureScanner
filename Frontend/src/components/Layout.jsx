@@ -21,6 +21,7 @@ export default function Layout({ user, onLogout }) {
     { to: '/sast', icon: Code2, label: 'Code Scanner' },
     { to: '/dast', icon: Globe, label: 'URL Scanner' },
     { to: '/report', icon: FileText, label: 'Reports' },
+    { to: '/billing', icon: CreditCard, label: 'Billing' }
   ]
 
   const handleLogout = () => {

@@ -10,6 +10,7 @@ import Layout from './components/Layout'
 import VerifyEmail from './pages/VerifyEmail'
 import ResetPassword from './pages/ResetPassword'
 import Admin from './pages/Admin'
+import PaymentSuccess from './pages/PaymentSuccess';
 
 
 export default function App() {
@@ -38,6 +39,7 @@ export default function App() {
         <Route path="/register" element={!user ? <Register onRegister={handleLogin} /> : <Navigate to={user?.role === 'admin' ? '/admin' : '/dashboard'} />} />
         <Route path="/verify-email" element={<VerifyEmail />} />
         <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/payment/success" element={<PaymentSuccess />} />
         <Route path="/" element={user ? <Layout user={user} onLogout={handleLogout} /> : <Navigate to="/login" />}>
           <Route index element={<Navigate to={user?.role === 'admin' ? '/admin' : '/dashboard'} replace />} />
           <Route path="dashboard" element={<Dashboard />} />

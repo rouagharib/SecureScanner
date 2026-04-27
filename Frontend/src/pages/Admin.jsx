@@ -1,10 +1,35 @@
 import { useState, useEffect } from 'react'
 import { Users, ShieldAlert, BarChart3, Trash2, RefreshCw, Search, Ban, UserCheck, UserPlus, AlertTriangle } from 'lucide-react'
 import { useToast } from '../components/Toast'
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  PieChart, Pie, Cell
+} from 'recharts'
 import '../components/Layout.css'
 import './Admin.css'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000'
+
+const CHART_COLORS = ['#6366f1', '#8b5cf6', '#a78bfa', '#c4b5fd', '#818cf8', '#4f46e5']
+const SEVERITY_COLORS = { critical: '#dc2626', high: '#ea580c', medium: '#d97706', low: '#059669' }
+const SCAN_TYPE_COLORS = { SAST: '#6366f1', DAST: '#8b5cf6', Git: '#059669' }
+
+// ── Custom legend rendered as pills below each donut ──────
+function PieLegend({ data, colorMap, fallbackColors }) {
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 12px', justifyContent: 'center', marginTop: 8 }}>
+      {data.map((entry, i) => {
+        const color = colorMap?.[entry.name.toLowerCase()] || fallbackColors[i % fallbackColors.length]
+        return (
+          <div key={entry.name} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text2)' }}>
+            <span style={{ width: 10, height: 10, borderRadius: '50%', background: color, display: 'inline-block', flexShrink: 0 }} />
+            {entry.name} <strong>({entry.value})</strong>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
 
 export default function Admin() {
   const { addToast } = useToast()
@@ -14,7 +39,7 @@ export default function Admin() {
   const [tab, setTab] = useState('overview')
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
-  const [confirmAction, setConfirmAction] = useState(null) // { type, userId, userName, action }
+  const [confirmAction, setConfirmAction] = useState(null)
 
   const token = localStorage.getItem('token')
   const headers = { 'Authorization': `Bearer ${token}` }
@@ -59,10 +84,7 @@ export default function Admin() {
 
   const deleteUser = async (userId, userName) => {
     try {
-      await fetch(`${API_URL}/api/admin/users/${userId}`, {
-        method: 'DELETE',
-        headers
-      })
+      await fetch(`${API_URL}/api/admin/users/${userId}`, { method: 'DELETE', headers })
       addToast(`User ${userName} deleted`, 'success')
       fetchAll()
     } catch {
@@ -75,8 +97,51 @@ export default function Admin() {
     u.email.toLowerCase().includes(search.toLowerCase())
   )
 
+  // ── CHART DATA ────────────────────────────────────────────
+  const vulnTypeChartData = stats?.top_vulnerability_types?.map(v => ({
+    name: v.type.length > 22 ? v.type.slice(0, 22) + '…' : v.type,
+    count: v.count,
+    full: v.type
+  })) || []
+
+  const scanTypeData = scans.reduce((acc, scan) => {
+    const type = scan.type || 'Unknown'
+    acc[type] = (acc[type] || 0) + 1
+    return acc
+  }, {})
+  const scanTypeChartData = Object.entries(scanTypeData).map(([name, value]) => ({ name, value }))
+
+  const severityData = scans.reduce((acc, scan) => {
+    acc.critical += scan.critical || 0
+    acc.high += scan.high || 0
+    acc.medium += scan.medium || 0
+    acc.low += scan.low || 0
+    return acc
+  }, { critical: 0, high: 0, medium: 0, low: 0 })
+  const severityChartData = Object.entries(severityData)
+    .filter(([, value]) => value > 0)
+    .map(([name, value]) => ({ name: name.charAt(0).toUpperCase() + name.slice(1), value }))
+
+  const roleData = users.reduce((acc, u) => {
+    acc[u.role] = (acc[u.role] || 0) + 1
+    return acc
+  }, {})
+  const roleChartData = Object.entries(roleData).map(([name, value]) => ({
+    name: name.charAt(0).toUpperCase() + name.slice(1), value
+  }))
+
+  const statusData = users.reduce((acc, u) => {
+    const s = u.status || 'active'
+    acc[s] = (acc[s] || 0) + 1
+    return acc
+  }, {})
+  const statusChartData = Object.entries(statusData).map(([name, value]) => ({
+    name: name.charAt(0).toUpperCase() + name.slice(1), value
+  }))
+
   return (
     <div className="admin-page">
+
       {/* Confirmation Modal */}
       {confirmAction && (
         <div className="confirm-modal-overlay" onClick={() => setConfirmAction(null)}>
@@ -97,19 +162,15 @@ export default function Admin() {
               <button className="btn btn-secondary btn-sm" onClick={() => setConfirmAction(null)}>
                 Cancel
               </button>
-              <button className="btn btn-sm" style={{ background: confirmAction.type === 'delete' ? 'var(--danger)' : 'var(--accent)', color: 'white' }}
+              <button
+                className="btn btn-sm"
+                style={{ background: confirmAction.type === 'delete' ? 'var(--danger)' : 'var(--accent)', color: 'white' }}
                 onClick={() => {
-                  if (confirmAction.type === 'delete') {
-                    deleteUser(confirmAction.userId, confirmAction.userName)
-                  } else if (confirmAction.type === 'ban') {
-                    updateUser(confirmAction.userId, { status: 'banned' }, confirmAction.userName)
-                  } else if (confirmAction.type === 'unban') {
-                    updateUser(confirmAction.userId, { status: 'active' }, confirmAction.userName)
-                  } else if (confirmAction.type === 'promote') {
-                    updateUser(confirmAction.userId, { role: 'admin' }, confirmAction.userName)
-                  } else if (confirmAction.type === 'demote') {
-                    updateUser(confirmAction.userId, { role: 'user' }, confirmAction.userName)
-                  }
+                  if (confirmAction.type === 'delete') deleteUser(confirmAction.userId, confirmAction.userName)
+                  else if (confirmAction.type === 'ban') updateUser(confirmAction.userId, { status: 'banned' }, confirmAction.userName)
+                  else if (confirmAction.type === 'unban') updateUser(confirmAction.userId, { status: 'active' }, confirmAction.userName)
+                  else if (confirmAction.type === 'promote') updateUser(confirmAction.userId, { role: 'admin' }, confirmAction.userName)
+                  else if (confirmAction.type === 'demote') updateUser(confirmAction.userId, { role: 'user' }, confirmAction.userName)
                   setConfirmAction(null)
                 }}
               >
@@ -134,8 +195,8 @@ export default function Admin() {
       <div className="admin-tabs">
         {[
           { key: 'overview', label: 'Overview', icon: BarChart3 },
-          { key: 'users', label: `Users (${users.length})`, icon: Users },
-          { key: 'scans', label: `Scans (${scans.length})`, icon: ShieldAlert },
+          { key: 'users',    label: `Users (${users.length})`, icon: Users },
+          { key: 'scans',    label: `Scans (${scans.length})`, icon: ShieldAlert },
         ].map(({ key, label, icon: Icon }) => (
           <button
             key={key}
@@ -147,7 +208,7 @@ export default function Admin() {
         ))}
       </div>
 
-      {/* Loading State */}
+      {/* Loading skeleton */}
       {loading ? (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginTop: 24 }}>
           {[1, 2, 3].map(i => (
@@ -158,14 +219,16 @@ export default function Admin() {
         </div>
       ) : (
         <>
-          {/* Overview Tab */}
+          {/* ── OVERVIEW TAB ─────────────────────────────── */}
           {tab === 'overview' && stats && (
             <div className="admin-overview">
+
+              {/* Stat cards */}
               <div className="admin-stats">
                 {[
-                  { label: 'Total Users', value: stats.total_users, color: 'blue' },
-                  { label: 'Total Scans', value: stats.total_scans, color: 'purple' },
-                  { label: 'Vulnerabilities Found', value: stats.total_vulnerabilities, color: 'red' },
+                  { label: 'Total Users',            value: stats.total_users,           color: 'blue'   },
+                  { label: 'Total Scans',             value: stats.total_scans,           color: 'purple' },
+                  { label: 'Vulnerabilities Found',   value: stats.total_vulnerabilities, color: 'red'    },
                 ].map(({ label, value, color }) => (
                   <div key={label} className={`admin-stat-card admin-stat--${color}`}>
                     <div className="admin-stat-value">{value}</div>
@@ -174,28 +237,221 @@ export default function Admin() {
                 ))}
               </div>
 
-              <div className="card">
+              {/* ── 3-column donut charts ── */}
+              <div className="charts-grid">
+
+                {/* Severity Distribution */}
+                <div className="card chart-card">
+                  <div className="card-header">
+                    <span className="card-title">Severity Distribution</span>
+                  </div>
+                  <div className="chart-body">
+                    {severityChartData.length > 0 ? (
+                      <>
+                        {/* Fixed width+height on PieChart — no ResponsiveContainer for donuts */}
+                        <div style={{ display: 'flex', justifyContent: 'center' }}>
+                          <PieChart width={220} height={220}>
+                            <Pie
+                              data={severityChartData}
+                              cx={110}
+                              cy={110}
+                              innerRadius={60}
+                              outerRadius={90}
+                              paddingAngle={4}
+                              dataKey="value"
+                              stroke="none"
+                            >
+                              {severityChartData.map((entry, i) => (
+                                <Cell
+                                  key={i}
+                                  fill={SEVERITY_COLORS[entry.name.toLowerCase()] || CHART_COLORS[i % CHART_COLORS.length]}
+                                />
+                              ))}
+                            </Pie>
+                            <Tooltip
+                              formatter={(val) => [val, 'Findings']}
+                              contentStyle={{ borderRadius: 10, border: 'none', boxShadow: 'var(--shadow)' }}
+                            />
+                          </PieChart>
+                        </div>
+                        <PieLegend data={severityChartData} colorMap={SEVERITY_COLORS} fallbackColors={CHART_COLORS} />
+                      </>
+                    ) : (
+                      <div className="empty-chart"><p>No severity data yet</p></div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Scan Types */}
+                <div className="card chart-card">
+                  <div className="card-header">
+                    <span className="card-title">Scan Types</span>
+                  </div>
+                  <div className="chart-body">
+                    {scanTypeChartData.length > 0 ? (
+                      <>
+                        <div style={{ display: 'flex', justifyContent: 'center' }}>
+                          <PieChart width={220} height={220}>
+                            <Pie
+                              data={scanTypeChartData}
+                              cx={110}
+                              cy={110}
+                              innerRadius={60}
+                              outerRadius={90}
+                              paddingAngle={4}
+                              dataKey="value"
+                              stroke="none"
+                            >
+                              {scanTypeChartData.map((entry, i) => (
+                                <Cell
+                                  key={i}
+                                  fill={SCAN_TYPE_COLORS[entry.name] || CHART_COLORS[i % CHART_COLORS.length]}
+                                />
+                              ))}
+                            </Pie>
+                            <Tooltip
+                              formatter={(val) => [val, 'Scans']}
+                              contentStyle={{ borderRadius: 10, border: 'none', boxShadow: 'var(--shadow)' }}
+                            />
+                          </PieChart>
+                        </div>
+                        <PieLegend data={scanTypeChartData} colorMap={SCAN_TYPE_COLORS} fallbackColors={CHART_COLORS} />
+                      </>
+                    ) : (
+                      <div className="empty-chart"><p>No scan data yet</p></div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Users by Role */}
+                <div className="card chart-card">
+                  <div className="card-header">
+                    <span className="card-title">Users by Role</span>
+                  </div>
+                  <div className="chart-body">
+                    {roleChartData.length > 0 ? (
+                      <>
+                        <div style={{ display: 'flex', justifyContent: 'center' }}>
+                          <PieChart width={220} height={220}>
+                            <Pie
+                              data={roleChartData}
+                              cx={110}
+                              cy={110}
+                              innerRadius={60}
+                              outerRadius={90}
+                              paddingAngle={4}
+                              dataKey="value"
+                              stroke="none"
+                            >
+                              {roleChartData.map((entry, i) => (
+                                <Cell
+                                  key={i}
+                                  fill={entry.name === 'Admin' ? '#dc2626' : '#6366f1'}
+                                />
+                              ))}
+                            </Pie>
+                            <Tooltip
+                              formatter={(val) => [val, 'Users']}
+                              contentStyle={{ borderRadius: 10, border: 'none', boxShadow: 'var(--shadow)' }}
+                            />
+                          </PieChart>
+                        </div>
+                        <PieLegend
+                          data={roleChartData}
+                          colorMap={{ admin: '#dc2626', user: '#6366f1' }}
+                          fallbackColors={CHART_COLORS}
+                        />
+                      </>
+                    ) : (
+                      <div className="empty-chart"><p>No role data yet</p></div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* ── Full-width bar chart ── */}
+              <div className="card chart-card-full">
                 <div className="card-header">
                   <span className="card-title">Top Vulnerability Types</span>
+                </div>
+                <div className="chart-body">
+                  {vulnTypeChartData.length > 0 ? (
+                    /* Explicit height wrapper — ResponsiveContainer needs a real pixel height from its parent */
+                    <div style={{ width: '100%', height: 320 }}>
+                      <ResponsiveContainer width="100%" height="100%">
+                      <BarChart
+                        data={vulnTypeChartData}
+                        margin={{ top: 10, right: 20, left: 0, bottom: 60 }}
+                      >
+                        <defs>
+                          <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="#6366f1" />
+                            <stop offset="100%" stopColor="#8b5cf6" />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" opacity={0.4} vertical={false} />
+                        <XAxis
+                          dataKey="name"
+                          tick={{ fontSize: 11, fill: 'var(--text3)' }}
+                          angle={-35}
+                          textAnchor="end"
+                          height={70}
+                          interval={0}
+                        />
+                        <YAxis
+                          tick={{ fontSize: 11, fill: 'var(--text3)' }}
+                          allowDecimals={false}
+                          width={30}
+                        />
+                        <Tooltip
+                          contentStyle={{ borderRadius: 10, border: 'none', boxShadow: 'var(--shadow)' }}
+                          formatter={(val, name, props) => [val, props.payload.full || 'Count']}
+                          labelStyle={{ fontWeight: 600, fontSize: 13 }}
+                        />
+                        <Bar
+                          dataKey="count"
+                          fill="url(#barGradient)"
+                          radius={[6, 6, 0, 0]}
+                          maxBarSize={56}
+                        />
+                      </BarChart>
+                    </ResponsiveContainer>
+                    </div>
+                  ) : (
+                    <div className="empty-chart"><p>No vulnerability data yet</p></div>
+                  )}
+                </div>
+              </div>
+
+              {/* ── User status table ── */}
+              <div className="card">
+                <div className="card-header">
+                  <span className="card-title">User Status Breakdown</span>
                 </div>
                 <div className="card-body" style={{ padding: 0 }}>
                   <table className="scan-table">
                     <thead>
                       <tr>
-                        <th>#</th>
-                        <th>Vulnerability Type</th>
+                        <th>Status</th>
                         <th>Count</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {stats.top_vulnerability_types.length === 0 ? (
-                        <tr><td colSpan={3} style={{ textAlign: 'center', color: 'var(--text3)', padding: 24 }}>No vulnerabilities found</td></tr>
+                      {statusChartData.length === 0 ? (
+                        <tr>
+                          <td colSpan={2} style={{ textAlign: 'center', color: 'var(--text3)', padding: 24 }}>
+                            No user data
+                          </td>
+                        </tr>
                       ) : (
-                        stats.top_vulnerability_types.map((v, i) => (
-                          <tr key={i}>
-                            <td style={{ color: 'var(--text3)', width: 40 }}>{i + 1}</td>
-                            <td>{v.type}</td>
-                            <td><span className="badge badge-info">{v.count}</span></td>
+                        statusChartData.map(s => (
+                          <tr key={s.name}>
+                            <td>
+                              <span className={`badge ${s.name === 'Active' ? 'badge-success' : s.name === 'Banned' ? 'badge-critical' : 'badge-info'}`}>
+                                {s.name}
+                              </span>
+                            </td>
+                            <td><span className="badge badge-info">{s.value}</span></td>
                           </tr>
                         ))
                       )}
@@ -206,10 +462,9 @@ export default function Admin() {
             </div>
           )}
 
-          {/* Users Tab */}
+          {/* ── USERS TAB ─────────────────────────────────── */}
           {tab === 'users' && (
             <div>
-              {/* Search */}
               <div className="admin-search">
                 <Search size={15} />
                 <input
@@ -259,15 +514,14 @@ export default function Admin() {
                             <td><span className="badge badge-info">{user.scan_count}</span></td>
                             <td style={{ color: 'var(--text3)', fontSize: 13 }}>{user.created_at}</td>
                             <td>
-                              {user.email !== 'rouagharib631@gmail.com' && (
+                              {user.email !== 'admin@securescan.local' && (
                                 <div style={{ display: 'flex', gap: 6 }}>
                                   <button
                                     className="btn btn-secondary btn-sm"
                                     title={user.status === 'banned' ? 'Unban user' : 'Ban user'}
                                     onClick={() => setConfirmAction({
                                       type: user.status === 'banned' ? 'unban' : 'ban',
-                                      userId: user.id,
-                                      userName: user.name
+                                      userId: user.id, userName: user.name
                                     })}
                                   >
                                     {user.status === 'banned' ? <UserCheck size={13} /> : <Ban size={13} />}
@@ -277,8 +531,7 @@ export default function Admin() {
                                     title={user.role === 'admin' ? 'Demote to user' : 'Promote to admin'}
                                     onClick={() => setConfirmAction({
                                       type: user.role === 'admin' ? 'demote' : 'promote',
-                                      userId: user.id,
-                                      userName: user.name
+                                      userId: user.id, userName: user.name
                                     })}
                                   >
                                     {user.role === 'admin' ? <Ban size={13} /> : <UserPlus size={13} />}
@@ -288,9 +541,7 @@ export default function Admin() {
                                     style={{ color: 'var(--danger)', background: 'var(--danger-bg)', border: '1px solid #fecaca' }}
                                     title="Delete user"
                                     onClick={() => setConfirmAction({
-                                      type: 'delete',
-                                      userId: user.id,
-                                      userName: user.name
+                                      type: 'delete', userId: user.id, userName: user.name
                                     })}
                                   >
                                     <Trash2 size={13} />
@@ -308,7 +559,7 @@ export default function Admin() {
             </div>
           )}
 
-          {/* Scans Tab */}
+          {/* ── SCANS TAB ─────────────────────────────────── */}
           {tab === 'scans' && (
             <div className="card">
               <div className="card-body" style={{ padding: 0 }}>

@@ -1,6 +1,13 @@
-from dotenv import load_dotenv
-import os
 
+import os
+from dotenv import load_dotenv
+# Stripe
+STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY", "")
+STRIPE_PUBLISHABLE_KEY = os.getenv("STRIPE_PUBLISHABLE_KEY", "")
+STRIPE_PRO_MONTHLY_PRICE_ID = os.getenv("STRIPE_PRO_MONTHLY_PRICE_ID", "")
+STRIPE_PRO_YEARLY_PRICE_ID = os.getenv("STRIPE_PRO_YEARLY_PRICE_ID", "")
+STRIPE_ENTERPRISE_MONTHLY_PRICE_ID = os.getenv("STRIPE_ENTERPRISE_MONTHLY_PRICE_ID", "")
+STRIPE_ENTERPRISE_YEARLY_PRICE_ID = os.getenv("STRIPE_ENTERPRISE_YEARLY_PRICE_ID", "")
 load_dotenv()
 
 # MongoDB

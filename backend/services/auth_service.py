@@ -17,8 +17,10 @@ async def get_user_by_email(email: str):
 
 
 async def create_user(name: str, email: str, password: str):
+    print("🚀 create_user called")
     existing = await get_user_by_email(email)
     if existing:
+        print("❌ User already exists")
         return None
 
     hashed = hash_password(password)
@@ -34,7 +36,9 @@ async def create_user(name: str, email: str, password: str):
         "created_at": now,
         "updated_at": now
     }
+    print("📦 About to insert user:", user)
     result = await users_collection.insert_one(user)
+    print("✅ Inserted ID:", result.inserted_id)
     user["_id"] = result.inserted_id
     return user
 
