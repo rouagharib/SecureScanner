@@ -11,11 +11,27 @@ import {
   CreditCard
 } from 'lucide-react'
 import './Layout.css'
+import { useState, useEffect } from 'react'
 
 export default function Layout({ user, onLogout }) {
   const navigate = useNavigate()
-  const planLabel = user?.role === 'admin' ? 'ADMIN' : (user?.subscription_plan || 'free').toUpperCase()
+  const [planLabel, setPlanLabel] = useState(
+  user?.role === 'admin' ? 'ADMIN' : (user?.subscription_plan || 'FREE').toUpperCase()
+)
 
+useEffect(() => {
+  if (user?.role === 'admin') return
+  const token = localStorage.getItem('token')
+  if (!token) return
+  fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/payments/subscription`, {
+    headers: { Authorization: `Bearer ${token}` }
+  })
+    .then(r => r.json())
+    .then(data => {
+      if (data.plan) setPlanLabel(data.plan.toUpperCase())
+    })
+    .catch(() => {})
+}, [user])
   // Nav is inside the component so it can access user
   const nav = [
     ...(user?.role === 'admin' ? [{ to: '/admin', icon: Settings, label: 'Admin' }] : []),

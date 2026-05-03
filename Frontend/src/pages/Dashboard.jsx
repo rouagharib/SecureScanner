@@ -79,7 +79,7 @@ export default function Dashboard() {
 
       {/* Subscription visibility */}
       {subscription && !isAdmin && (
-        <div className="card" style={{ marginTop: 16 }}>
+        <div className="card" style={{ marginTop: 16, marginBottom: 24 }}>
           <div className="card-header">
             <span className="card-title">Subscription</span>
             <button className="btn btn-secondary btn-sm" onClick={() => navigate('/billing')}>

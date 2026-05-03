@@ -11,6 +11,7 @@ export default function PaymentSuccess() {
   const { addToast } = useToast()
   const [state, setState] = useState('verifying')
   const sessionId = searchParams.get('session_id')
+  console.log('session_id from URL:', sessionId) // ADD THIS
 
   useEffect(() => {
     const verify = async () => {
@@ -20,6 +21,7 @@ export default function PaymentSuccess() {
       }
       try {
         const token = localStorage.getItem('token')
+        console.log('Token at verify time:', token) // 👈 ADD THIS LINE HERE
         const res = await fetch(`${API_URL}/api/payments/session/${sessionId}`, {
           headers: { Authorization: `Bearer ${token}` }
         })

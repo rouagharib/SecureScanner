@@ -7,10 +7,8 @@ from config import (
     STRIPE_WEBHOOK_SECRET,
     STRIPE_PORTAL_RETURN_URL,
     STRIPE_STANDARD_MONTHLY_PRICE_ID,
-    STRIPE_STANDARD_QUARTERLY_PRICE_ID,
     STRIPE_STANDARD_YEARLY_PRICE_ID,
     STRIPE_PREMIUM_MONTHLY_PRICE_ID,
-    STRIPE_PREMIUM_QUARTERLY_PRICE_ID,
     STRIPE_PREMIUM_YEARLY_PRICE_ID,
     TRIAL_DAYS,
     SUBSCRIPTION_GRACE_DAYS,
@@ -36,10 +34,8 @@ PLAN_LIMITS = {
 
 PRICE_MAP = {
     ("standard", "monthly"): STRIPE_STANDARD_MONTHLY_PRICE_ID,
-    ("standard", "quarterly"): STRIPE_STANDARD_QUARTERLY_PRICE_ID,
     ("standard", "annual"): STRIPE_STANDARD_YEARLY_PRICE_ID,
     ("premium", "monthly"): STRIPE_PREMIUM_MONTHLY_PRICE_ID,
-    ("premium", "quarterly"): STRIPE_PREMIUM_QUARTERLY_PRICE_ID,
     ("premium", "annual"): STRIPE_PREMIUM_YEARLY_PRICE_ID,
 }
 
@@ -98,7 +94,10 @@ async def create_checkout_session(
 
     price_id = PRICE_MAP.get((plan, billing_cycle))
     if not price_id:
-        return None
+        error_msg = f"Missing price ID for {plan}/{billing_cycle}"
+        print(error_msg)  # shows in terminal
+        await _log_billing_event("checkout.missing_price", user_id, {"error": error_msg})
+        return None  # still returns None, but logged
 
     subscription = await subscriptions_collection.find_one({"user_id": user_id})
     params = {
@@ -230,26 +229,30 @@ async def _apply_subscription_state(
     )
 
 
-async def _sync_stripe_subscription(stripe_subscription):
-    user_id = stripe_subscription.get("metadata", {}).get("user_id")
+async def _sync_stripe_subscription(stripe_subscription, fallback_user_id: str = None, fallback_plan: str = None, fallback_billing_cycle: str = None):
+    import json
+    if not isinstance(stripe_subscription, dict):
+        stripe_subscription = json.loads(str(stripe_subscription))
+
+    user_id = stripe_subscription.get("metadata", {}).get("user_id") or fallback_user_id
     if not user_id:
-        # Fallback by subscription id lookup
         existing = await subscriptions_collection.find_one(
-            {"stripe_subscription_id": stripe_subscription["id"]}
+            {"stripe_subscription_id": stripe_subscription.get("id")}
         )
         user_id = existing.get("user_id") if existing else None
     if not user_id:
+        print(f"[DEBUG] _sync_stripe_subscription: no user_id found, skipping")
         return
 
-    plan = stripe_subscription.get("metadata", {}).get("plan")
-    billing_cycle = stripe_subscription.get("metadata", {}).get("billing_cycle", "monthly")
+    plan = stripe_subscription.get("metadata", {}).get("plan") or fallback_plan
+    billing_cycle = stripe_subscription.get("metadata", {}).get("billing_cycle", "monthly") or fallback_billing_cycle or "monthly"
     if not plan:
         existing = await subscriptions_collection.find_one({"user_id": user_id})
         plan = existing.get("plan", "standard") if existing else "standard"
 
     await _apply_subscription_state(
         user_id=user_id,
-        stripe_subscription_id=stripe_subscription["id"],
+        stripe_subscription_id=stripe_subscription.get("id"),
         stripe_customer_id=stripe_subscription.get("customer"),
         plan=plan,
         stripe_status=stripe_subscription.get("status", "active"),
@@ -260,7 +263,6 @@ async def _sync_stripe_subscription(stripe_subscription):
         promo_code=stripe_subscription.get("metadata", {}).get("promo_code"),
         billing_cycle=billing_cycle,
     )
-
 
 async def _record_invoice(invoice):
     await invoices_collection.update_one(
@@ -293,7 +295,10 @@ async def handle_webhook(payload, sig_header):
     except Exception as e:
         return False, f"Webhook signature error: {e}"
 
-    event_id = event.get("id")
+    import json
+    event_dict = json.loads(str(event))
+
+    event_id = event_dict.get("id")
     if not event_id:
         return False, "Missing event id"
 
@@ -302,20 +307,22 @@ async def handle_webhook(payload, sig_header):
         return True, "Already processed"
 
     await processed_webhook_events_collection.insert_one(
-        {"event_id": event_id, "type": event.get("type"), "created_at": _now()}
+        {"event_id": event_id, "type": event_dict.get("type"), "created_at": _now()}
     )
 
-    event_type = event["type"]
-    data_obj = event["data"]["object"]
+    event_type = event_dict["type"]
+    data_obj = event_dict["data"]["object"]
 
     if event_type == "checkout.session.completed":
         user_id = data_obj.get("metadata", {}).get("user_id")
+        plan = data_obj.get("metadata", {}).get("plan")
+        billing_cycle = data_obj.get("metadata", {}).get("billing_cycle", "monthly")
         stripe_sub_id = data_obj.get("subscription")
         if stripe_sub_id:
             stripe_sub = await _stripe_call(stripe.Subscription.retrieve, stripe_sub_id)
-            await _sync_stripe_subscription(stripe_sub)
+            stripe_sub_dict = json.loads(str(stripe_sub))
+            await _sync_stripe_subscription(stripe_sub_dict, fallback_user_id=user_id, fallback_plan=plan, fallback_billing_cycle=billing_cycle)
         await _log_billing_event(event_type, user_id, {"session_id": data_obj.get("id")})
-
     elif event_type in {"customer.subscription.created", "customer.subscription.updated", "customer.subscription.deleted"}:
         await _sync_stripe_subscription(data_obj)
         user_id = data_obj.get("metadata", {}).get("user_id")
@@ -326,14 +333,14 @@ async def handle_webhook(payload, sig_header):
         sub_id = data_obj.get("subscription")
         if sub_id:
             stripe_sub = await _stripe_call(stripe.Subscription.retrieve, sub_id)
-            await _sync_stripe_subscription(stripe_sub)
+            stripe_sub_dict = json.loads(str(stripe_sub))
+            await _sync_stripe_subscription(stripe_sub_dict)
         await _log_billing_event(event_type, None, {"invoice_id": data_obj.get("id")})
 
     else:
         await _log_billing_event("webhook.ignored", None, {"type": event_type})
 
     return True, "Processed"
-
 
 async def get_user_subscription(user_id: str):
     """Get user's current subscription with free defaults."""
@@ -366,10 +373,19 @@ async def get_invoice_history(user_id: str, limit: int = 20):
 async def get_subscription_by_checkout_session(user_id: str, session_id: str):
     try:
         session = await _stripe_call(stripe.checkout.Session.retrieve, session_id)
-    except Exception:
+        import json
+        session_dict = json.loads(str(session))
+    except Exception as e:
+        print(f"[DEBUG] Session retrieve error: {e}")
         return None
 
-    if session.get("metadata", {}).get("user_id") != user_id:
+    metadata = session_dict.get("metadata") or {}
+    print(f"[DEBUG] metadata={metadata}")
+    print(f"[DEBUG] metadata user_id={metadata.get('user_id')}")
+    print(f"[DEBUG] current user_id={user_id}")
+
+    if metadata.get("user_id") != user_id:
+        print("[DEBUG] user_id MISMATCH — returning None")
         return None
 
     sub = await get_user_subscription(user_id)
@@ -379,8 +395,6 @@ async def get_subscription_by_checkout_session(user_id: str, session_id: str):
         "billing_cycle": sub.get("billing_cycle", "monthly"),
         "current_period_end": sub.get("current_period_end").isoformat() if sub.get("current_period_end") else None,
     }
-
-
 async def get_usage_snapshot(user_id: str):
     subscription = await get_user_subscription(user_id)
     limits = _get_limits(subscription.get("plan", "free"))

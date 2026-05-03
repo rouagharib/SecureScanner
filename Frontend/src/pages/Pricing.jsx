@@ -5,13 +5,13 @@ import { useToast } from '../components/Toast'
 import './Pricing.css'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000'
-const CYCLES = ['monthly', 'quarterly', 'annual']
+const CYCLES = ['monthly', 'annual']
 const PRICING = {
-  free: { monthly: 0, quarterly: 0, annual: 0 },
-  standard: { monthly: 19, quarterly: 49, annual: 179 },
-  premium: { monthly: 49, quarterly: 129, annual: 469 },
-  university: { monthly: null, quarterly: null, annual: null },
-  enterprise: { monthly: null, quarterly: null, annual: null },
+  free: { monthly: 0, annual: 0 },
+  standard: { monthly: 19, annual: 49 },
+  premium: { monthly: 49, annual: 129 },
+  university: { monthly: null, annual: null },
+  enterprise: { monthly: null, annual: null },
 }
 const PLAN_META = [
   {
@@ -75,10 +75,11 @@ export default function Pricing() {
       navigate('/quote')
       return
     }
-    if (currentPlan !== 'free' && currentPlan !== plan) {
-      navigate('/plan-switch')
-      return
-    }
+    // Removed the redirect to /plan-switch – now allows direct checkout
+    // if (currentPlan !== 'free' && currentPlan !== plan) {
+    //   navigate('/plan-switch')
+    //   return
+    
 
     setLoading(plan)
     try {

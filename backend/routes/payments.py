@@ -13,6 +13,13 @@ from services.payment_service import (
 from config import APP_URL
 from database import quote_requests_collection
 from datetime import datetime
+from database import users_collection
+from bson import ObjectId
+
+async def _get_user_email(user_id: str):
+    user = await users_collection.find_one({"_id": ObjectId(user_id)}, {"email": 1})
+    return user["email"] if user else None
+
 
 router = APIRouter(prefix="/api/payments", tags=["Payments"])
 
@@ -32,18 +39,35 @@ class QuoteRequestBody(BaseModel):
 
 @router.post("/create-checkout")
 async def create_checkout(request: CheckoutRequest, user=Depends(get_current_user)):
-    """Create Stripe checkout session"""
     plan_alias = {"pro": "standard", "team": "premium"}
     plan = plan_alias.get(request.plan, request.plan)
     if plan not in ["standard", "premium", "enterprise", "university"]:
         raise HTTPException(status_code=400, detail="Invalid plan")
 
+    # Get user email from database
+    user_email = await _get_user_email(user["id"])
+    if not user_email:
+        raise HTTPException(status_code=400, detail="User email not found")
+
+    # Check if user already has a paid subscription
+    current_sub = await get_user_subscription(user["id"])
+    current_plan = current_sub.get("plan", "free")
+
+    # If user has a paid plan and is trying to change to a different plan -> portal
+    if current_plan != "free" and current_plan != plan:
+        portal_result = await create_portal_session(user["id"])
+        if portal_result and portal_result.get("url"):
+            return portal_result
+        else:
+            raise HTTPException(status_code=400, detail="Could not open billing portal to change plan")
+
+    # Otherwise create a new checkout session (free user or same plan – though same plan should be disabled in UI)
     success_url = f"{APP_URL}/payment/success?session_id={{CHECKOUT_SESSION_ID}}"
     cancel_url = f"{APP_URL}/payment/cancelled"
 
     result = await create_checkout_session(
         user_id=user["id"],
-        user_email=user["email"],
+        user_email=user_email,
         plan=plan,
         billing_cycle=request.billing_cycle,
         success_url=success_url,
@@ -52,7 +76,7 @@ async def create_checkout(request: CheckoutRequest, user=Depends(get_current_use
     )
 
     if not result:
-        raise HTTPException(status_code=500, detail="Failed to create checkout session")
+        raise HTTPException(status_code=500, detail="Stripe price ID not configured for this plan/cycle")
     if result.get("requires_quote"):
         raise HTTPException(status_code=400, detail="Selected plan requires a sales quote")
 

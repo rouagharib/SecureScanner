@@ -86,7 +86,7 @@ export default function Billing() {
       {loading ? <div className="card"><div className="card-body">Loading billing data...</div></div> : (
         <>
           {(subscription?.status === 'trial' || subscription?.status === 'pending_payment') && (
-            <div className="card" style={{ borderColor: 'var(--warning)' }}>
+            <div className="card" style={{ borderColor: 'var(--warning)', marginBottom: '24px' }}>
               <div className="card-body" style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
                 <AlertTriangle size={16} />
                 <div>

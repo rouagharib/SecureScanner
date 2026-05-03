@@ -1,8 +1,10 @@
-
 import os
 from dotenv import load_dotenv
+from pathlib import Path
 
-load_dotenv()
+# Force load .env from the same directory as this file
+env_path = Path(__file__).parent / ".env"
+load_dotenv(dotenv_path=env_path)
 
 # Stripe
 STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY", "")
@@ -25,11 +27,11 @@ TRIAL_DAYS = int(os.getenv("TRIAL_DAYS", "14"))
 SUBSCRIPTION_GRACE_DAYS = int(os.getenv("SUBSCRIPTION_GRACE_DAYS", "3"))
 
 # MongoDB
-MONGODB_URL = os.getenv("MONGODB_URL", "mongodb://localhost:27017")
+MONGODB_URL = os.getenv("MONGODB_URL", "mongodb+srv://admin_roua:rouapfedev@stacksafe0.t58kkot.mongodb.net/securescan?appName=StackSafe0")
 DB_NAME = os.getenv("DB_NAME", "securescan")
 
 # JWT
-SECRET_KEY = os.getenv("SECRET_KEY", "change-me-in-production")
+SECRET_KEY = os.getenv("SECRET_KEY", "s3cur3sc4n_2026_@pfe_s3cr3t_k3y_!x9z")
 ALGORITHM = os.getenv("ALGORITHM", "HS256")
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
 
